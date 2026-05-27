@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import {
   CalendarDays,
   CheckCircle2,
@@ -9,13 +9,20 @@ import {
   MapPin,
   Plus,
   RefreshCw,
+  Search,
+  Settings2,
   ShieldCheck,
   Users,
   Volleyball,
 } from 'lucide-react';
 import type { Session } from '@supabase/supabase-js';
+import { AdminPanel } from './components/AdminPanel';
+import { BookingFlow } from './components/BookingFlow';
+import { MapClubMarkers } from './components/MapClubMarkers';
+import { formatDate, formatMoney } from './lib/format';
+import { isAdminGlobal } from './lib/roles';
 import { supabase } from './lib/supabase';
-import type { PartidoPublico, Perfil, Turno } from './types';
+import type { ClubPublico, PartidoPublico, Perfil } from './types';
 
 const buenosAires: [number, number] = [-34.6037, -58.3816];
 
@@ -29,61 +36,48 @@ function MapFocus({ center }: { center: [number, number] }) {
   return null;
 }
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('es-AR', {
-    weekday: 'short',
-    day: '2-digit',
-    month: 'short',
-  }).format(new Date(`${value}T12:00:00`));
-}
-
-function formatMoney(value: number | null | undefined) {
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    maximumFractionDigits: 0,
-  }).format(Number(value ?? 0));
-}
-
-function uniqueLocations(partidos: PartidoPublico[]) {
-  const byClub = new Map<string, PartidoPublico>();
-  partidos.forEach((partido) => {
-    if (partido.latitud && partido.longitud) {
-      byClub.set(`${partido.club_nombre}-${partido.latitud}-${partido.longitud}`, partido);
-    }
-  });
-  return [...byClub.values()];
-}
-
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [perfil, setPerfil] = useState<Perfil | null>(null);
   const [partidos, setPartidos] = useState<PartidoPublico[]>([]);
-  const [turnos, setTurnos] = useState<Turno[]>([]);
-  const [selectedTurno, setSelectedTurno] = useState<number | null>(null);
+  const [clubes, setClubes] = useState<ClubPublico[]>([]);
+  const [bookingOpen, setBookingOpen] = useState(false);
+  const [bookingClubId, setBookingClubId] = useState<number | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'registro'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [nombre, setNombre] = useState('');
   const [nivel, setNivel] = useState('5');
-  const [cupoMaximo, setCupoMaximo] = useState('18');
-  const [invitados, setInvitados] = useState('0');
-  const [nivelPartido, setNivelPartido] = useState('recreativo');
-  const [requiereAprobacion, setRequiereAprobacion] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [userCenter, setUserCenter] = useState<[number, number]>(buenosAires);
+  const [view, setView] = useState<'home' | 'admin'>('home');
 
-  const lugares = useMemo(() => uniqueLocations(partidos), [partidos]);
-  const mapCenter = lugares[0]?.latitud && lugares[0]?.longitud
-    ? [lugares[0].latitud, lugares[0].longitud] as [number, number]
+  const canManageCatalog = isAdminGlobal(perfil?.rol);
+
+  const clubesConUbicacion = useMemo(
+    () => clubes.filter((club) => club.latitud != null && club.longitud != null),
+    [clubes],
+  );
+  const mapCenter = clubesConUbicacion[0]?.latitud && clubesConUbicacion[0]?.longitud
+    ? [clubesConUbicacion[0].latitud, clubesConUbicacion[0].longitud] as [number, number]
     : userCenter;
+
+  function openBooking(clubId?: number) {
+    setBookingClubId(clubId ?? null);
+    setBookingOpen(true);
+  }
+
+  function closeBooking() {
+    setBookingOpen(false);
+    setBookingClubId(null);
+  }
 
   async function loadData(currentSession = session) {
     setLoading(true);
     setMessage(null);
 
-    const [partidosResult, turnosResult] = await Promise.all([
+    const [partidosResult, clubesResult] = await Promise.all([
       currentSession
         ? supabase
             .from('partidos_publicos')
@@ -91,14 +85,7 @@ export function App() {
             .order('fecha', { ascending: true })
             .order('hora_inicio', { ascending: true })
         : Promise.resolve({ data: [], error: null }),
-      supabase
-        .from('disponibilidad_turnos')
-        .select('*, canchas(*, clubes(*))')
-        .eq('estado', 'disponible')
-        .gte('fecha', new Date().toISOString().slice(0, 10))
-        .order('fecha', { ascending: true })
-        .order('hora_inicio', { ascending: true })
-        .limit(12),
+      supabase.from('clubes_publicos').select('*').order('nombre', { ascending: true }),
     ]);
 
     if (partidosResult.error) {
@@ -107,10 +94,10 @@ export function App() {
       setPartidos((partidosResult.data ?? []) as PartidoPublico[]);
     }
 
-    if (turnosResult.error) {
-      setMessage(turnosResult.error.message);
+    if (clubesResult.error) {
+      setMessage(clubesResult.error.message);
     } else {
-      setTurnos((turnosResult.data ?? []) as Turno[]);
+      setClubes((clubesResult.data ?? []) as ClubPublico[]);
     }
 
     if (currentSession?.user.id) {
@@ -176,42 +163,16 @@ export function App() {
     setMessage(authMode === 'registro' ? 'Cuenta creada. Revisa tu email si Supabase pide confirmacion.' : 'Sesion iniciada.');
   }
 
-  async function handleCreateMatch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage(null);
-
-    if (!session) {
-      setMessage('Inicia sesion para organizar un partido.');
-      return;
-    }
-
-    if (!selectedTurno) {
-      setMessage('Elegi un turno disponible.');
-      return;
-    }
-
-    const { data, error } = await supabase.rpc('crear_partido', {
-      p_turno_id: selectedTurno,
-      p_cupo_minimo: 12,
-      p_cupo_maximo: Number(cupoMaximo),
-      p_invitados: Number(invitados),
-      p_nivel: nivelPartido,
-      p_requiere_aprobacion: requiereAprobacion,
-      p_visibilidad: 'publico',
-    });
-
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
-
-    setSelectedTurno(null);
-    setMessage(`Partido creado con pre-reserva activa. ID: ${data}`);
-    await loadData();
-  }
-
   async function handleSignOut() {
     await supabase.auth.signOut();
+  }
+
+  if (view === 'admin' && canManageCatalog) {
+    return (
+      <main className="app-shell">
+        <AdminPanel onBack={() => setView('home')} onCreated={() => void loadData()} />
+      </main>
+    );
   }
 
   return (
@@ -229,6 +190,16 @@ export function App() {
           </div>
 
           <div className="flex items-center gap-2">
+            <button className="btn-primary" onClick={() => openBooking()} type="button">
+              <Search size={17} />
+              Alquilar cancha
+            </button>
+            {canManageCatalog ? (
+              <button className="btn-secondary" onClick={() => setView('admin')} type="button">
+                <Settings2 size={17} />
+                Admin
+              </button>
+            ) : null}
             <button className="btn-secondary" onClick={() => loadData()} type="button">
               <RefreshCw size={17} />
               Actualizar
@@ -248,12 +219,12 @@ export function App() {
           <div className="panel overflow-hidden">
             <div className="flex flex-col gap-3 border-b border-ink/10 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-lg font-bold text-ink">Mapa de partidos</h2>
-                <p className="text-sm text-ink/60">Los puntos aparecen cuando hay clubes con ubicacion cargada.</p>
+                <h2 className="text-lg font-bold text-ink">Mapa de clubes</h2>
+                <p className="text-sm text-ink/60">Los puntos aparecen cuando hay sedes con ubicacion cargada.</p>
               </div>
               <span className="inline-flex items-center gap-2 rounded-md bg-sand/20 px-3 py-2 text-sm font-semibold text-ink">
                 <MapPin size={16} />
-                {lugares.length} sedes activas
+                {clubesConUbicacion.length} sedes activas
               </span>
             </div>
 
@@ -264,20 +235,7 @@ export function App() {
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                {lugares.map((partido) => (
-                  <CircleMarker
-                    center={[partido.latitud!, partido.longitud!]}
-                    key={`${partido.club_nombre}-${partido.id}`}
-                    pathOptions={{ color: '#2d7d6f', fillColor: '#f5b85f', fillOpacity: 0.85 }}
-                    radius={11}
-                  >
-                    <Popup>
-                      <strong>{partido.club_nombre}</strong>
-                      <br />
-                      {partido.direccion ?? 'Direccion pendiente'}
-                    </Popup>
-                  </CircleMarker>
-                ))}
+                <MapClubMarkers clubes={clubesConUbicacion} onSelectClub={(id) => openBooking(id)} />
               </MapContainer>
             </div>
           </div>
@@ -350,7 +308,15 @@ export function App() {
                   </span>
                   <div>
                     <h2 className="font-bold text-ink">{perfil?.nombre_completo ?? session.user.email}</h2>
-                    <p className="text-sm text-ink/60">Nivel {perfil?.nivel_voley ?? '-'} · {perfil?.rol ?? 'jugador'}</p>
+                    <p className="text-sm text-ink/60">
+                      Nivel {perfil?.nivel_voley ?? '-'} · {perfil?.rol ?? 'jugador'}
+                    </p>
+                    {canManageCatalog ? (
+                      <button className="btn-secondary mt-2 w-full" onClick={() => setView('admin')} type="button">
+                        <Settings2 size={16} />
+                        Gestionar canchas
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -403,58 +369,17 @@ export function App() {
           </section>
 
           <section className="panel p-4">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-bold text-ink">Organizar partido</h2>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="font-bold text-ink">Reservar cancha</h2>
               <Plus size={20} className="text-court" />
             </div>
-
-            <form className="space-y-3" onSubmit={handleCreateMatch}>
-              <label className="block text-sm font-semibold text-ink">
-                Turno disponible
-                <select className="focus-ring mt-1 w-full rounded-md border border-ink/15 bg-white px-3 py-2" value={selectedTurno ?? ''} onChange={(event) => setSelectedTurno(Number(event.target.value) || null)}>
-                  <option value="">Elegir turno</option>
-                  {turnos.map((turno) => (
-                    <option key={turno.id} value={turno.id}>
-                      {formatDate(turno.fecha)} · {turno.hora_inicio.slice(0, 5)} · {turno.canchas?.clubes?.nombre ?? 'Club'} / {turno.canchas?.nombre_identificador ?? 'Cancha'}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block text-sm font-semibold text-ink">
-                  Cupo max.
-                  <input className="focus-ring mt-1 w-full rounded-md border border-ink/15 px-3 py-2" max="22" min="12" type="number" value={cupoMaximo} onChange={(event) => setCupoMaximo(event.target.value)} />
-                </label>
-                <label className="block text-sm font-semibold text-ink">
-                  Invitados
-                  <input className="focus-ring mt-1 w-full rounded-md border border-ink/15 px-3 py-2" min="0" type="number" value={invitados} onChange={(event) => setInvitados(event.target.value)} />
-                </label>
-              </div>
-
-              <label className="block text-sm font-semibold text-ink">
-                Nivel
-                <select className="focus-ring mt-1 w-full rounded-md border border-ink/15 bg-white px-3 py-2" value={nivelPartido} onChange={(event) => setNivelPartido(event.target.value)}>
-                  <option value="recreativo">Recreativo</option>
-                  <option value="intermedio">Intermedio</option>
-                  <option value="competitivo">Competitivo</option>
-                </select>
-              </label>
-
-              <label className="flex items-center gap-2 text-sm font-semibold text-ink">
-                <input checked={requiereAprobacion} onChange={(event) => setRequiereAprobacion(event.target.checked)} type="checkbox" />
-                Requiere aprobacion del organizador
-              </label>
-
-              <button className="btn-primary w-full" type="submit">
-                <Plus size={17} />
-                Crear pre-reserva
-              </button>
-            </form>
-
-            {turnos.length === 0 ? (
-              <p className="mt-3 text-sm text-ink/60">No hay turnos disponibles cargados en Supabase.</p>
-            ) : null}
+            <p className="text-sm text-ink/65">
+              Busca un club, elegi la cancha y mira todos los horarios disponibles u ocupados antes de reservar.
+            </p>
+            <button className="btn-primary mt-4 w-full" onClick={() => openBooking()} type="button">
+              <Search size={17} />
+              Buscar y alquilar
+            </button>
           </section>
 
           {message ? (
@@ -464,6 +389,15 @@ export function App() {
           ) : null}
         </aside>
       </div>
+
+      <BookingFlow
+        initialClubId={bookingClubId}
+        open={bookingOpen}
+        session={session}
+        onClose={closeBooking}
+        onMessage={setMessage}
+        onRefresh={() => void loadData()}
+      />
     </main>
   );
 }

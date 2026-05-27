@@ -9,6 +9,9 @@ export type Court = {
   id: number;
   club_id: number | null;
   nombre_identificador: string;
+  titulo: string;
+  descripcion: string | null;
+  fotos: string[];
   precio_total: number;
   precio_sena: number;
   clubes?: Club | null;
@@ -52,4 +55,31 @@ export type Perfil = {
   email: string;
   nivel_voley: number | null;
   rol: string | null;
+};
+
+export type ClubPublico = {
+  id: number;
+  nombre: string;
+  direccion: string | null;
+  telefono: string | null;
+  latitud: number | null;
+  longitud: number | null;
+};
+
+export type CanchaDetalle = {
+  id: number;
+  club_id: number | null;
+  nombre_identificador: string;
+  titulo: string;
+  descripcion: string | null;
+  fotos: string[];
+  precio_total: number;
+  precio_sena: number;
+};
+
+export const TURNO_ESTADO_LABEL: Record<Turno['estado'], string> = {
+  disponible: 'Disponible',
+  pre_reservado: 'Pre-reservado',
+  reservado: 'Ocupado',
+  bloqueado_club: 'Bloqueado',
 };

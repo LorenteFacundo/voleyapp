@@ -43,15 +43,22 @@
   - la app renderiza en `http://127.0.0.1:5173`;
   - no hay errores ni warnings de consola;
   - la DB esta vacia, por eso la UI muestra 0 partidos y 0 turnos.
+- Se implementó el flujo de superadmin para agregar canchas completas:
+  - Backend: Nuevos campos en `canchas` (título, descripción, fotos), bucket `canchas-fotos`, políticas RLS para admin_global/superadmin, y RPC `admin_crear_cancha` (que crea club, cancha y horarios, y permite reutilizar/actualizar clubes existentes con coordenadas y teléfono).
+  - Frontend: Panel Admin (`/admin`) visible para roles de administrador.
+  - Cuenta de usuario principal (`facundo.lorente07@gmail.com`) seteada como `superadmin`.
+- Se implementó la reserva de turnos por rangos (`reservar_turno_rango`), permitiendo dividir un bloque grande (ej. 12:00 a 22:00) en varios más chicos al reservar (ej. 13:00 a 16:00).
+- Se mejoró el mapa: ahora lee de una vista `public.clubes_publicos` para mostrar los pines de los clubes con ubicación registrada, incluso si no tienen partidos.
+
+- Se implementó la UI para la **reserva de turnos por rangos** en `BookingFlow.tsx`, permitiendo a los usuarios elegir la hora de inicio y fin exacta al momento de alquilar o crear un partido (hace "split" del turno llamando a `reservar_turno_rango` antes de `crear_partido`).
+- Se resolvieron bugs en el flujo de creación de partidos:
+  - Se modificó `reservar_turno_rango` para aceptar el parámetro `estado_final` (solucionando el error *"El turno ya no está disponible"* al crear partidos).
+  - Se modificó el `search_path` de `crear_partido` para que incluya `extensions` (solucionando el error de *"gen_random_bytes does not exist"* al generar tokens con pgcrypto).
 
 ## Proximos pasos
-- Cargar datos reales o seed inicial: clubes, canchas y disponibilidad de turnos.
-- Probar registro/login con un usuario real.
-- Probar `crear_partido` con un turno disponible real.
 - Construir vistas de detalle:
   - `/cancha/:id`
   - `/partido/:id`
-  - `/admin`
 - Decidir si se corrigen los avisos heredados de PostGIS:
   - `ALTER TABLE public.spatial_ref_sys ENABLE ROW LEVEL SECURITY;`
   - mover extension PostGIS fuera del schema `public` solo si se valida impacto.
