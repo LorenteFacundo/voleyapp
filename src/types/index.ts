@@ -47,6 +47,7 @@ export type PartidoPublico = {
   latitud: number | null;
   longitud: number | null;
   jugadores_confirmados: number;
+  mi_estado_inscripcion: string | null;
 };
 
 export type Perfil = {
@@ -82,4 +83,22 @@ export const TURNO_ESTADO_LABEL: Record<Turno['estado'], string> = {
   pre_reservado: 'Pre-reservado',
   reservado: 'Ocupado',
   bloqueado_club: 'Bloqueado',
+};
+
+export type Participante = {
+  usuario_id: string;
+  nombre: string | null;
+  estado_inscripcion: string;
+  created_at: string;
+};
+
+export type PartidoDetalle = PartidoPublico & {
+  organizador_id: string;
+  reserva_id: number;
+  reserva_expira_at: string | null;
+  turno_id: number;
+  cancha_id: number;
+  club_id: number;
+  participantes: Participante[] | null;
+  mi_estado_inscripcion: string | null;
 };

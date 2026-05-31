@@ -1,7 +1,7 @@
 import clsx from 'clsx';
-import { formatDate, formatTime } from '../lib/format';
-import type { Turno } from '../types';
-import { TURNO_ESTADO_LABEL } from '../types';
+import { formatDate, formatTime } from '@/lib/format';
+import type { Turno } from '@/types';
+import { TURNO_ESTADO_LABEL } from '@/types';
 
 type ScheduleBoardProps = {
   turnos: Turno[];

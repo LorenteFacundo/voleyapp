@@ -56,3 +56,25 @@ export function groupTurnosByFecha(turnos: Turno[]) {
   });
   return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
 }
+
+export async function unirseAPartido(partidoId: number) {
+  const { data, error } = await supabase.rpc('unirse_a_partido', {
+    p_partido_id: partidoId,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
+export async function salirseDePartido(partidoId: number) {
+  const { error } = await supabase.rpc('salirse_de_partido', {
+    p_partido_id: partidoId,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
