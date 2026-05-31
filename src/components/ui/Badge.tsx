@@ -6,11 +6,11 @@ type BadgeProps = {
 } & React.HTMLAttributes<HTMLSpanElement>;
 
 const variantStyles = {
-  default: 'bg-ink/10 text-ink/70',
-  success: 'bg-green-100 text-green-700',
-  warning: 'bg-sand/20 text-ink',
-  danger: 'bg-red-100 text-red-700',
-  court: 'bg-court/10 text-court',
+  default: 'bg-vb-light text-vb-gray',
+  success: 'bg-vb-green/10 text-vb-green',
+  warning: 'bg-vb-yellow/20 text-vb-gray',
+  danger: 'bg-vb-red/10 text-vb-red',
+  court: 'bg-vb-orange-light text-vb-orange',
 };
 
 export const Badge = React.memo<BadgeProps>(
