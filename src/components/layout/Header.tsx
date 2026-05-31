@@ -1,4 +1,4 @@
-import { LogOut, RefreshCw, Search, Settings2, Volleyball } from 'lucide-react';
+import { LogOut, Settings2, Volleyball, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { isAdminGlobal } from '@/lib/roles';
@@ -10,44 +10,56 @@ type HeaderProps = {
 };
 
 export function Header({ onOpenBooking, onRefresh }: HeaderProps) {
-  const { session, signOut } = useAuth();
-  const { perfil } = useAuth();
+  const { session, signOut, perfil } = useAuth();
   const navigate = useNavigate();
   const canManageCatalog = isAdminGlobal(perfil?.rol);
 
   return (
-    <header className="border-b border-ink/10 bg-white/80 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <header className="sticky top-0 z-30 border-b border-vb-gray/10 bg-white/80 backdrop-blur-md">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
+        {/* Logo */}
         <div className="flex items-center gap-3">
-          <span className="grid size-11 place-items-center rounded-md bg-court text-white">
-            <Volleyball size={24} />
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-vb-orange text-white shadow-card">
+            <Volleyball size={22} />
           </span>
-          <div>
-            <h1 className="text-xl font-black tracking-normal text-ink">VoleyApp</h1>
-            <p className="text-sm text-ink/65">Canchas, turnos y partidos cerca tuyo</p>
+          <div className="hidden sm:block">
+            <h1 className="text-lg font-black tracking-tight text-vb-blue">VoleyApp</h1>
+            <p className="text-xs text-vb-gray/60">Canchas, turnos y partidos</p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Desktop actions */}
+        <div className="hidden items-center gap-2 md:flex">
           <Button size="sm" onClick={onOpenBooking}>
-            <Search size={17} />
-            Alquilar cancha
+            <Plus size={16} />
+            Crear partido
           </Button>
           {canManageCatalog ? (
             <Button variant="secondary" size="sm" onClick={() => navigate('/admin')}>
-              <Settings2 size={17} />
+              <Settings2 size={16} />
               Admin
             </Button>
           ) : null}
           <Button variant="secondary" size="sm" onClick={onRefresh}>
-            <RefreshCw size={17} />
             Actualizar
           </Button>
           {session ? (
-            <Button size="sm" onClick={signOut}>
-              <LogOut size={17} />
+            <Button variant="ghost" size="sm" onClick={signOut}>
+              <LogOut size={16} />
               Salir
             </Button>
+          ) : null}
+        </div>
+
+        {/* Mobile: just user actions */}
+        <div className="flex items-center gap-2 md:hidden">
+          {session ? (
+            <button
+              onClick={signOut}
+              className="rounded-lg p-2 text-vb-gray/60 transition hover:bg-vb-gray/5 hover:text-vb-gray"
+            >
+              <LogOut size={20} />
+            </button>
           ) : null}
         </div>
       </div>
