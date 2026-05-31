@@ -55,10 +55,38 @@
   - Se modificó `reservar_turno_rango` para aceptar el parámetro `estado_final` (solucionando el error *"El turno ya no está disponible"* al crear partidos).
   - Se modificó el `search_path` de `crear_partido` para que incluya `extensions` (solucionando el error de *"gen_random_bytes does not exist"* al generar tokens con pgcrypto).
 
+## 2026-05-31 — Rediseño Total de UI
+
+Se realizó un rediseño completo de la interfaz de VoleyApp con los siguientes objetivos:
+- **Mobile-first**: la mayoría de usuarios acceden desde celular.
+- **Identidad visual vibrante**: colores que representan el voleibol (naranja, azul, amarillo).
+- **Layout reorganizado**: partidos como contenido principal, mapa expandible en mobile.
+
+### Cambios principales:
+- Nueva paleta de colores en `tailwind.config.js` (tokens `vb-*`).
+- Componentes UI base actualizados (Button, Card, Badge) con colores vibrantes.
+- Nuevos componentes:
+  - `BottomNav` — navegación inferior mobile (Inicio, Partidos, Canchas, Perfil).
+  - `HeroSection` — banner azul con buscador prominente y filtros rápidos.
+  - `MatchCardV2` — cards de partidos con barra de progreso animada.
+  - `ExpandableMap` — mapa tipo sheet en mobile, se expande a pantalla completa.
+- `HomePage` reestructurada con hero, grid responsive, sidebar desktop, FAB mobile.
+- `Header` rediseñado — compacto en mobile, expandido en desktop.
+- Mapa con nuevos colores de markers (azul/naranja).
+- Animaciones mejoradas (slideUp con stagger, progress bar animada).
+
+### Decisiones de diseño:
+- Bottom navigation bar en mobile para accesibilidad con el pulgar.
+- FAB naranja en mobile para crear partidos rápidamente.
+- Cards con progreso animado del equipo.
+- Hero con buscador prominente y chips de filtro.
+- Mapa se muestra como preview en mobile y se expande al tocar.
+
 ## Proximos pasos
 - Construir vistas de detalle:
   - `/cancha/:id`
   - `/partido/:id`
+- Implementar rutas para BottomNav: `/partidos`, `/canchas`, `/perfil`.
 - Decidir si se corrigen los avisos heredados de PostGIS:
   - `ALTER TABLE public.spatial_ref_sys ENABLE ROW LEVEL SECURITY;`
   - mover extension PostGIS fuera del schema `public` solo si se valida impacto.
