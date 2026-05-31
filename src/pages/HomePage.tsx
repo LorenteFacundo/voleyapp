@@ -1,23 +1,22 @@
 import { useCallback, useState } from 'react';
-import { Search } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { usePartidos } from '@/hooks/usePartidos';
 import { useClubes } from '@/hooks/useClubes';
-import { isAdminGlobal } from '@/lib/roles';
 import { Header } from '@/components/layout/Header';
-import { MapView } from '@/components/features/MapView';
+import { HeroSection } from '@/components/layout/HeroSection';
+import { BottomNav } from '@/components/layout/BottomNav';
+import { ExpandableMap } from '@/components/features/ExpandableMap';
 import { MatchList } from '@/components/features/MatchList';
-import { AuthForm } from '@/components/features/AuthForm';
-import { UserPanel } from '@/components/features/UserPanel';
 import { BookingFlow } from '@/components/features/BookingFlow';
+import { UserPanel } from '@/components/features/UserPanel';
+import { AuthForm } from '@/components/features/AuthForm';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { toast } from 'sonner';
+import { Plus } from 'lucide-react';
 
 export function HomePage() {
   const { session, perfil } = useAuth();
-  const navigate = useNavigate();
   const isAuthenticated = session != null;
 
   const { partidos, loading: loadingPartidos, refresh: refreshPartidos } = usePartidos(isAuthenticated);
@@ -25,8 +24,6 @@ export function HomePage() {
 
   const [bookingOpen, setBookingOpen] = useState(false);
   const [bookingClubId, setBookingClubId] = useState<number | null>(null);
-
-  const canManageCatalog = isAdminGlobal(perfil?.rol);
 
   const openBooking = useCallback((clubId?: number) => {
     setBookingClubId(clubId ?? null);
@@ -44,39 +41,53 @@ export function HomePage() {
   }, [refreshPartidos, refreshClubes]);
 
   return (
-    <>
+    <div className="app-shell pb-20 md:pb-0">
       <Header onOpenBooking={() => openBooking()} onRefresh={refresh} />
+      <HeroSection />
 
-      <div className="mx-auto grid max-w-7xl gap-5 px-4 py-5 lg:grid-cols-[1.35fr_0.65fr]">
-        <section className="grid gap-5">
-          <MapView clubes={clubes} onSelectClub={(id) => openBooking(id)} />
-          <MatchList partidos={partidos} loading={loadingPartidos} isAuthenticated={isAuthenticated} />
-        </section>
+      <main className="mx-auto max-w-7xl px-4 py-6">
+        <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+          {/* Main content */}
+          <div className="grid gap-6">
+            <ExpandableMap clubes={clubes} onSelectClub={(id) => openBooking(id)} />
+            <MatchList partidos={partidos} loading={loadingPartidos} isAuthenticated={isAuthenticated} />
+          </div>
 
-        <aside className="grid content-start gap-5">
-          {session ? (
-            <UserPanel onNavigateAdmin={() => navigate('/admin')} />
-          ) : (
+          {/* Sidebar (desktop) */}
+          <aside className="hidden content-start gap-6 lg:grid">
+            {session ? (
+              <UserPanel onNavigateAdmin={() => {}} />
+            ) : (
+              <Card padding="md">
+                <AuthForm onMessage={(msg) => toast(msg)} />
+              </Card>
+            )}
+
             <Card padding="md">
-              <AuthForm onMessage={(msg) => toast(msg)} />
+              <div className="text-center">
+                <h2 className="font-bold text-vb-blue">Reservar cancha</h2>
+                <p className="mt-2 text-sm text-vb-gray/65">
+                  Busca un club, elegí la cancha y mirá los horarios disponibles.
+                </p>
+                <Button className="mt-4" fullWidth onClick={() => openBooking()}>
+                  Buscar y alquilar
+                </Button>
+              </div>
             </Card>
-          )}
+          </aside>
+        </div>
+      </main>
 
-          <Card padding="md">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-bold text-ink">Reservar cancha</h2>
-              <Search size={20} className="text-court" />
-            </div>
-            <p className="text-sm text-ink/65">
-              Busca un club, elegi la cancha y mira todos los horarios disponibles u ocupados antes de reservar.
-            </p>
-            <Button className="mt-4" fullWidth onClick={() => openBooking()}>
-              <Search size={17} />
-              Buscar y alquilar
-            </Button>
-          </Card>
-        </aside>
-      </div>
+      {/* FAB for mobile */}
+      <button
+        onClick={() => openBooking()}
+        className="fixed bottom-20 right-4 z-40 grid h-14 w-14 place-items-center rounded-full bg-vb-orange text-white shadow-lg shadow-vb-orange/30 transition hover:scale-105 active:scale-95 md:hidden"
+        aria-label="Crear partido"
+      >
+        <Plus size={28} />
+      </button>
+
+      <BottomNav />
 
       <BookingFlow
         initialClubId={bookingClubId}
@@ -84,6 +95,6 @@ export function HomePage() {
         onClose={closeBooking}
         onRefresh={refresh}
       />
-    </>
+    </div>
   );
 }
