@@ -1,23 +1,31 @@
+import { useState } from 'react';
 import clsx from 'clsx';
-import { formatDate, formatTime } from '@/lib/format';
-import type { Turno } from '@/types';
-import { TURNO_ESTADO_LABEL } from '@/types';
+import { formatDate, formatTime, formatMoney } from '@/lib/format';
+import { turnoKey } from '@/lib/booking';
+import type { TurnoVirtual } from '@/types';
 
 type ScheduleBoardProps = {
-  turnos: Turno[];
-  selectedTurnoId: number | null;
-  onSelect: (turno: Turno) => void;
+  turnos: TurnoVirtual[];
+  selectedTurnoKey: string | null;
+  onSelect: (turno: TurnoVirtual) => void;
 };
 
-const estadoStyles: Record<Turno['estado'], string> = {
+const estadoStyles: Record<string, string> = {
   disponible: 'border-court/30 bg-court/10 text-court hover:border-court hover:bg-court/15',
   pre_reservado: 'border-sand/50 bg-sand/15 text-ink/80',
   reservado: 'border-ink/15 bg-ink/5 text-ink/50',
   bloqueado_club: 'border-red-200 bg-red-50 text-red-700/80',
 };
 
-export function ScheduleBoard({ turnos, selectedTurnoId, onSelect }: ScheduleBoardProps) {
-  const byFecha = turnos.reduce<Map<string, Turno[]>>((acc, turno) => {
+const estadoLabels: Record<string, string> = {
+  disponible: 'Disponible',
+  pre_reservado: 'Pre-reservado',
+  reservado: 'Ocupado',
+  bloqueado_club: 'Bloqueado',
+};
+
+export function ScheduleBoard({ turnos, selectedTurnoKey, onSelect }: ScheduleBoardProps) {
+  const byFecha = turnos.reduce<Map<string, TurnoVirtual[]>>((acc, turno) => {
     const list = acc.get(turno.fecha) ?? [];
     list.push(turno);
     acc.set(turno.fecha, list);
@@ -25,6 +33,13 @@ export function ScheduleBoard({ turnos, selectedTurnoId, onSelect }: ScheduleBoa
   }, new Map());
 
   const fechas = [...byFecha.entries()].sort(([a], [b]) => a.localeCompare(b));
+  const fechasConDisponibles = fechas.filter(([, slots]) =>
+    slots.some((s) => s.estado === 'disponible')
+  );
+
+  const [selectedFecha, setSelectedFecha] = useState<string | null>(
+    fechasConDisponibles[0]?.[0] ?? fechas[0]?.[0] ?? null
+  );
 
   if (fechas.length === 0) {
     return (
@@ -34,15 +49,52 @@ export function ScheduleBoard({ turnos, selectedTurnoId, onSelect }: ScheduleBoa
     );
   }
 
+  const slots = selectedFecha ? byFecha.get(selectedFecha) ?? [] : [];
+
   return (
     <div className="grid gap-4">
-      {fechas.map(([fecha, slots]) => (
-        <section key={fecha}>
-          <h4 className="mb-2 text-sm font-bold text-ink">{formatDate(fecha)}</h4>
+      {/* Date selector */}
+      <div className="flex gap-2 overflow-x-auto pb-2">
+        {fechas.map(([fecha, dateSlots]) => {
+          const hasDisponibles = dateSlots.some((s) => s.estado === 'disponible');
+          const isSelected = selectedFecha === fecha;
+          const date = new Date(`${fecha}T12:00:00`);
+          const dayName = date.toLocaleDateString('es-AR', { weekday: 'short' });
+          const dayNum = date.getDate();
+          const month = date.toLocaleDateString('es-AR', { month: 'short' });
+
+          return (
+            <button
+              key={fecha}
+              onClick={() => setSelectedFecha(fecha)}
+              className={clsx(
+                'flex flex-col items-center shrink-0 rounded-lg border px-3 py-2 text-center transition min-w-[60px]',
+                isSelected
+                  ? 'border-court bg-court/10 text-court'
+                  : hasDisponibles
+                    ? 'border-ink/15 text-ink/70 hover:border-court/50'
+                    : 'border-ink/10 text-ink/30 cursor-default'
+              )}
+              disabled={!hasDisponibles}
+              type="button"
+            >
+              <span className="text-[10px] uppercase font-bold">{dayName}</span>
+              <span className="text-lg font-bold leading-tight">{dayNum}</span>
+              <span className="text-[10px]">{month}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Time slots for selected date */}
+      {selectedFecha && (
+        <div>
+          <h4 className="mb-2 text-sm font-bold text-ink">{formatDate(selectedFecha)}</h4>
           <div className="grid gap-2 sm:grid-cols-2">
             {slots.map((turno) => {
               const selectable = turno.estado === 'disponible';
-              const selected = selectedTurnoId === turno.id;
+              const key = turnoKey(turno);
+              const selected = selectedTurnoKey === key;
 
               return (
                 <button
@@ -54,7 +106,7 @@ export function ScheduleBoard({ turnos, selectedTurnoId, onSelect }: ScheduleBoa
                     selectable && 'cursor-pointer',
                   )}
                   disabled={!selectable}
-                  key={turno.id}
+                  key={key}
                   onClick={() => selectable && onSelect(turno)}
                   type="button"
                 >
@@ -63,15 +115,20 @@ export function ScheduleBoard({ turnos, selectedTurnoId, onSelect }: ScheduleBoa
                       {formatTime(turno.hora_inicio)} – {formatTime(turno.hora_fin)}
                     </span>
                     <span className="text-xs font-bold uppercase tracking-wide">
-                      {TURNO_ESTADO_LABEL[turno.estado]}
+                      {estadoLabels[turno.estado]}
                     </span>
                   </div>
+                  {selectable && turno.precio_total > 0 && (
+                    <div className="mt-1 text-xs text-ink/60">
+                      {formatMoney(turno.precio_total)}
+                    </div>
+                  )}
                 </button>
               );
             })}
           </div>
-        </section>
-      ))}
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-3 text-xs text-ink/60">
         <span className="inline-flex items-center gap-1.5">

@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { CanchaDetalle, ClubPublico, Turno } from '../types';
+import type { CanchaDetalle, ClubPublico, Turno, TurnoVirtual } from '../types';
 
 export async function fetchClubes(search = '') {
   let query = supabase.from('clubes_publicos').select('*').order('nombre', { ascending: true });
@@ -77,4 +77,37 @@ export async function salirseDePartido(partidoId: number) {
   if (error) {
     throw new Error(error.message);
   }
+}
+
+export async function obtenerTurnosDisponibles(
+  canchaId: number,
+  desde: string,
+  hasta: string
+): Promise<TurnoVirtual[]> {
+  const { data, error } = await supabase.rpc('obtener_turnos_disponibles', {
+    p_cancha_id: canchaId,
+    p_desde: desde,
+    p_hasta: hasta,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []) as unknown as TurnoVirtual[];
+}
+
+export function turnoKey(turno: TurnoVirtual): string {
+  if (turno.id != null) return String(turno.id);
+  return `${turno.fecha}-${turno.hora_inicio}-${turno.hora_fin}`;
+}
+
+export function groupTurnosVirtualesByFecha(turnos: TurnoVirtual[]) {
+  const map = new Map<string, TurnoVirtual[]>();
+  turnos.forEach((turno) => {
+    const list = map.get(turno.fecha) ?? [];
+    list.push(turno);
+    map.set(turno.fecha, list);
+  });
+  return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
 }

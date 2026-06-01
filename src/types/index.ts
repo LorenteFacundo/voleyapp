@@ -29,6 +29,7 @@ export type Turno = {
 
 export type PartidoPublico = {
   id: number;
+  organizador_id: string;
   estado_partido: string;
   cupo_minimo: number;
   cupo_maximo: number;
@@ -101,4 +102,128 @@ export type PartidoDetalle = PartidoPublico & {
   club_id: number;
   participantes: Participante[] | null;
   mi_estado_inscripcion: string | null;
+};
+
+// Admin types
+export type ClubAdmin = {
+  id: number;
+  nombre: string;
+  direccion: string | null;
+  telefono: string | null;
+  latitud: number;
+  longitud: number;
+  created_at: string;
+  canchas_count: number;
+};
+
+export type CanchaAdmin = {
+  id: number;
+  club_id: number;
+  club_nombre: string;
+  titulo: string;
+  nombre_identificador: string | null;
+  descripcion: string | null;
+  precio_total: number;
+  precio_sena: number;
+  fotos: string[];
+  turnos_count: number;
+};
+
+export type TurnoAdmin = {
+  id: number;
+  cancha_id: number;
+  cancha_titulo: string;
+  club_nombre: string;
+  fecha: string;
+  hora_inicio: string;
+  hora_fin: string;
+  estado: string;
+};
+
+export type ReservaAdmin = {
+  id: number;
+  turno_id: number;
+  usuario_id: string;
+  usuario_nombre: string;
+  usuario_email: string;
+  cancha_titulo: string;
+  club_nombre: string;
+  fecha: string;
+  hora_inicio: string;
+  hora_fin: string;
+  monto_sena_pagado: number;
+  estado_pago: string;
+  created_at: string;
+};
+
+export type PartidoAdmin = {
+  id: number;
+  organizador_id: string;
+  organizador_nombre: string;
+  organizador_email: string;
+  cancha_titulo: string;
+  club_nombre: string;
+  fecha: string;
+  hora_inicio: string;
+  hora_fin: string;
+  nivel_requerido: string;
+  estado_partido: string;
+  cupo_minimo: number;
+  cupo_maximo: number;
+  jugadores_confirmados: number;
+  requiere_aprobacion: boolean;
+};
+
+export type UsuarioAdmin = {
+  id: string;
+  nombre_completo: string | null;
+  email: string;
+  nivel_voley: number | null;
+  rol: string;
+  created_at: string;
+};
+
+// Horarios semanales
+export type HorarioSemanal = {
+  id: number;
+  cancha_id: number;
+  dia_semana: number; // 0=Dom, 1=Lun, ..., 6=Sáb
+  hora_inicio: string;
+  hora_fin: string;
+  precio_total: number;
+  precio_sena: number;
+  activo: boolean;
+};
+
+export const DIA_SEMANA_LABEL: Record<number, string> = {
+  0: 'Domingo',
+  1: 'Lunes',
+  2: 'Martes',
+  3: 'Miércoles',
+  4: 'Jueves',
+  5: 'Viernes',
+  6: 'Sábado',
+};
+
+export const DIA_SEMANA_CORTO: Record<number, string> = {
+  0: 'Dom',
+  1: 'Lun',
+  2: 'Mar',
+  3: 'Mié',
+  4: 'Jue',
+  5: 'Vie',
+  6: 'Sáb',
+};
+
+// Turno virtual (generado dinámicamente desde horarios_semanales)
+export type TurnoVirtual = {
+  id: number | null; // null si es virtual (no reservado aún)
+  cancha_id: number;
+  fecha: string;
+  hora_inicio: string;
+  hora_fin: string;
+  estado: 'disponible' | 'pre_reservado' | 'reservado' | 'bloqueado_club';
+  precio_total: number;
+  precio_sena: number;
+  horario_semanal_id: number;
 };

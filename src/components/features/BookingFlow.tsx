@@ -14,10 +14,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { useClubes } from '@/hooks/useClubes';
 import { useCanchas } from '@/hooks/useCanchas';
 import { useTurnos } from '@/hooks/useTurnos';
-import { reservarTurnoRango } from '@/lib/admin';
+import { reservarTurnoRango, reservarTurnoVirtual, crearPartidoVirtual } from '@/lib/admin';
+import { turnoKey } from '@/lib/booking';
 import { formatDate, formatMoney, formatTime } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import type { CanchaDetalle, ClubPublico, Turno } from '@/types';
+import type { CanchaDetalle, ClubPublico, TurnoVirtual } from '@/types';
 import { ScheduleBoard } from '@/components/features/ScheduleBoard';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
@@ -39,7 +40,7 @@ export function BookingFlow({ open, initialClubId, onClose, onRefresh }: Booking
   const [search, setSearch] = useState('');
   const [selectedClub, setSelectedClub] = useState<ClubPublico | null>(null);
   const [selectedCancha, setSelectedCancha] = useState<CanchaDetalle | null>(null);
-  const [selectedTurno, setSelectedTurno] = useState<Turno | null>(null);
+  const [selectedTurno, setSelectedTurno] = useState<TurnoVirtual | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const [cupoMaximo, setCupoMaximo] = useState('18');
@@ -49,7 +50,6 @@ export function BookingFlow({ open, initialClubId, onClose, onRefresh }: Booking
 
   const [horaInicioCustom, setHoraInicioCustom] = useState('');
   const [horaFinCustom, setHoraFinCustom] = useState('');
-  const customTurnoRef = useRef<number | null>(null);
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
@@ -76,7 +76,6 @@ export function BookingFlow({ open, initialClubId, onClose, onRefresh }: Booking
           setSelectedClub(data as ClubPublico);
           setSelectedCancha(null);
           setSelectedTurno(null);
-          customTurnoRef.current = null;
         });
     }
   }, [open, initialClubId, selectedClub]);
@@ -88,7 +87,6 @@ export function BookingFlow({ open, initialClubId, onClose, onRefresh }: Booking
       setSelectedClub(null);
       setSelectedCancha(null);
       setSelectedTurno(null);
-      customTurnoRef.current = null;
       setHoraInicioCustom('');
       setHoraFinCustom('');
       initialClubLoadedRef.current = false;
@@ -96,55 +94,42 @@ export function BookingFlow({ open, initialClubId, onClose, onRefresh }: Booking
   }, [open, selectedClub]);
 
   const horaInicio = useMemo(() => {
-    if (selectedTurno && customTurnoRef.current === selectedTurno.id && horaInicioCustom) {
+    if (selectedTurno && horaInicioCustom) {
       return horaInicioCustom;
     }
     return selectedTurno?.hora_inicio.slice(0, 5) ?? '';
   }, [selectedTurno, horaInicioCustom]);
 
   const horaFin = useMemo(() => {
-    if (selectedTurno && customTurnoRef.current === selectedTurno.id && horaFinCustom) {
+    if (selectedTurno && horaFinCustom) {
       return horaFinCustom;
     }
     return selectedTurno?.hora_fin.slice(0, 5) ?? '';
   }, [selectedTurno, horaFinCustom]);
 
   const handleHoraInicioChange = useCallback((value: string) => {
-    setHoraInicioCustom((prev) => {
-      // customTurnoRef debe actualizarse fuera del setState para no depender de prev
-      return value;
-    });
+    setHoraInicioCustom(value);
   }, []);
 
   const handleHoraFinChange = useCallback((value: string) => {
     setHoraFinCustom(value);
   }, []);
 
-  // Sincronizar customTurnoRef cuando cambia selectedTurno o los custom handlers
-  useEffect(() => {
-    if (selectedTurno) {
-      customTurnoRef.current = selectedTurno.id;
-    }
-  }, [selectedTurno, horaInicioCustom, horaFinCustom]);
-
   const selectClub = useCallback((club: ClubPublico) => {
     setSelectedClub(club);
     setSelectedCancha(null);
     setSelectedTurno(null);
-    customTurnoRef.current = null;
   }, []);
 
   const selectCancha = useCallback((cancha: CanchaDetalle) => {
     setSelectedCancha(cancha);
     setSelectedTurno(null);
-    customTurnoRef.current = null;
   }, []);
 
   const goBack = useCallback(() => {
     if (selectedCancha) {
       setSelectedCancha(null);
       setSelectedTurno(null);
-      customTurnoRef.current = null;
       return;
     }
     if (selectedClub) {
@@ -176,12 +161,23 @@ export function BookingFlow({ open, initialClubId, onClose, onRefresh }: Booking
 
     setSubmitting(true);
     try {
-      await reservarTurnoRango({
-        canchaId: selectedCancha.id,
-        fecha: selectedTurno.fecha,
-        horaInicio: horaInicio,
-        horaFin: horaFin,
-      });
+      if (selectedTurno.id === null) {
+        await reservarTurnoVirtual({
+          canchaId: selectedCancha.id,
+          fecha: selectedTurno.fecha,
+          horaInicio: horaInicio,
+          horaFin: horaFin,
+          precioTotal: selectedTurno.precio_total,
+          precioSena: selectedTurno.precio_sena,
+        });
+      } else {
+        await reservarTurnoRango({
+          canchaId: selectedCancha.id,
+          fecha: selectedTurno.fecha,
+          horaInicio: horaInicio,
+          horaFin: horaFin,
+        });
+      }
       toast.success(`Cancha reservada: ${formatDate(selectedTurno.fecha)} ${horaInicio}–${horaFin}`);
       await refreshTurnos();
       onRefresh();
@@ -213,29 +209,47 @@ export function BookingFlow({ open, initialClubId, onClose, onRefresh }: Booking
 
     setSubmitting(true);
     try {
-      const turnoIdReservado = await reservarTurnoRango({
-        canchaId: selectedCancha.id,
-        fecha: selectedTurno.fecha,
-        horaInicio: horaInicio,
-        horaFin: horaFin,
-        estadoFinal: 'disponible',
-      });
+      if (selectedTurno.id === null) {
+        const partidoId = await crearPartidoVirtual({
+          canchaId: selectedCancha.id,
+          fecha: selectedTurno.fecha,
+          horaInicio: horaInicio,
+          horaFin: horaFin,
+          precioTotal: selectedTurno.precio_total,
+          precioSena: selectedTurno.precio_sena,
+          cupoMinimo: min,
+          cupoMaximo: max,
+          invitados: Number(invitados),
+          nivel: nivelPartido,
+          requiereAprobacion: requiereAprobacion,
+          visibilidad: 'publico',
+        });
+        toast.success(`Partido creado y publicado. ID: ${partidoId}`);
+      } else {
+        const turnoIdReservado = await reservarTurnoRango({
+          canchaId: selectedCancha.id,
+          fecha: selectedTurno.fecha,
+          horaInicio: horaInicio,
+          horaFin: horaFin,
+          estadoFinal: 'disponible',
+        });
 
-      const { data, error } = await supabase.rpc('crear_partido', {
-        p_turno_id: turnoIdReservado,
-        p_cupo_minimo: min,
-        p_cupo_maximo: max,
-        p_invitados: Number(invitados),
-        p_nivel: nivelPartido,
-        p_requiere_aprobacion: requiereAprobacion,
-        p_visibilidad: 'publico',
-      });
+        const { data, error } = await supabase.rpc('crear_partido', {
+          p_turno_id: turnoIdReservado,
+          p_cupo_minimo: min,
+          p_cupo_maximo: max,
+          p_invitados: Number(invitados),
+          p_nivel: nivelPartido,
+          p_requiere_aprobacion: requiereAprobacion,
+          p_visibilidad: 'publico',
+        });
 
-      if (error) {
-        throw new Error(error.message);
+        if (error) {
+          throw new Error(error.message);
+        }
+
+        toast.success(`Partido creado y publicado. ID: ${data}`);
       }
-
-      toast.success(`Partido creado y publicado. ID: ${data}`);
       await refreshTurnos();
       onRefresh();
     } catch (error) {
@@ -462,10 +476,10 @@ function StepSelectTurno({
   onRequiereAprobacionChange,
 }: {
   cancha: CanchaDetalle;
-  turnos: Turno[];
+  turnos: TurnoVirtual[];
   loadingTurnos: boolean;
-  selectedTurno: Turno | null;
-  onSelectTurno: (turno: Turno) => void;
+  selectedTurno: TurnoVirtual | null;
+  onSelectTurno: (turno: TurnoVirtual) => void;
   horaInicio: string;
   horaFin: string;
   onHoraInicioChange: (v: string) => void;
@@ -496,10 +510,12 @@ function StepSelectTurno({
         <p className="text-sm text-ink/70">{cancha.descripcion}</p>
       )}
 
-      <div className="flex flex-wrap gap-4 text-sm">
-        <span className="font-bold text-ink">{formatMoney(cancha.precio_total)} total</span>
-        <span className="text-ink/60">Sena {formatMoney(cancha.precio_sena)}</span>
-      </div>
+      {selectedTurno && (
+        <div className="flex flex-wrap gap-4 text-sm">
+          <span className="font-bold text-ink">{formatMoney(selectedTurno.precio_total)} total</span>
+          <span className="text-ink/60">Sena {formatMoney(selectedTurno.precio_sena)}</span>
+        </div>
+      )}
 
       <div>
         <h3 className="mb-3 flex items-center gap-2 font-bold text-ink">
@@ -514,7 +530,7 @@ function StepSelectTurno({
           </div>
         ) : (
           <ScheduleBoard
-            selectedTurnoId={selectedTurno?.id ?? null}
+            selectedTurnoKey={selectedTurno ? turnoKey(selectedTurno) : null}
             turnos={turnos}
             onSelect={onSelectTurno}
           />

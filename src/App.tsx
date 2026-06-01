@@ -12,6 +12,7 @@ import { PerfilPage } from '@/pages/PerfilPage';
 
 const AdminPage = lazy(() => import('@/pages/AdminPage').then((m) => ({ default: m.AdminPage })));
 const MatchDetailPage = lazy(() => import('@/pages/MatchDetailPage').then((m) => ({ default: m.MatchDetailPage })));
+const CanchaDetailPage = lazy(() => import('@/pages/CanchaDetailPage').then((m) => ({ default: m.CanchaDetailPage })));
 
 function AdminGuard() {
   const { session, perfil } = useAuth();
@@ -47,6 +48,14 @@ export function App() {
               element={
                 <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="animate-pulse text-ink/50">Cargando...</div></div>}>
                   <MatchDetailPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/cancha/:id"
+              element={
+                <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="animate-pulse text-ink/50">Cargando...</div></div>}>
+                  <CanchaDetailPage />
                 </Suspense>
               }
             />
