@@ -3,18 +3,22 @@
 @tailwind utilities;
 
 :root {
-  color: #101820;
-  background: #f4f7f5;
+  color: #2D3436;
+  background: #F8F9FA;
   font-family: 'DM Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
   min-width: 320px;
   margin: 0;
+  overflow-x: hidden;
 }
 
 h1, h2, h3, h4, h5, h6 {
   font-family: 'Outfit', ui-sans-serif, system-ui, sans-serif;
+  color: #1A237E;
 }
 
 button,
@@ -32,35 +36,25 @@ select {
 
 .app-shell {
   min-height: 100vh;
-  background:
-    radial-gradient(circle at top left, rgba(245, 184, 95, 0.22), transparent 34rem),
-    linear-gradient(135deg, #f4f7f5 0%, #e8f1ec 45%, #f7efe2 100%);
+  background: #F8F9FA;
 }
 
 .focus-ring {
-  @apply outline-none ring-2 ring-transparent transition focus:ring-court/40;
-}
-
-.btn-primary {
-  @apply inline-flex items-center justify-center gap-2 rounded-md bg-ink px-4 py-2.5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-court;
-}
-
-.btn-secondary {
-  @apply inline-flex items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-court hover:text-court;
-}
-
-.panel {
-  @apply rounded-lg border border-ink/10 bg-white/85 shadow-soft backdrop-blur;
+  @apply outline-none ring-2 ring-transparent transition focus:ring-vb-orange/40;
 }
 
 @layer utilities {
   .animate-stagger > * {
-    animation: slideUp 0.3s ease-out backwards;
+    animation: slideUp 0.4s ease-out backwards;
   }
   .animate-stagger > *:nth-child(1) { animation-delay: 0ms; }
-  .animate-stagger > *:nth-child(2) { animation-delay: 50ms; }
-  .animate-stagger > *:nth-child(3) { animation-delay: 100ms; }
-  .animate-stagger > *:nth-child(4) { animation-delay: 150ms; }
-  .animate-stagger > *:nth-child(5) { animation-delay: 200ms; }
-  .animate-stagger > *:nth-child(6) { animation-delay: 250ms; }
+  .animate-stagger > *:nth-child(2) { animation-delay: 60ms; }
+  .animate-stagger > *:nth-child(3) { animation-delay: 120ms; }
+  .animate-stagger > *:nth-child(4) { animation-delay: 180ms; }
+  .animate-stagger > *:nth-child(5) { animation-delay: 240ms; }
+  .animate-stagger > *:nth-child(6) { animation-delay: 300ms; }
+
+  .text-balance {
+    text-wrap: balance;
+  }
 }

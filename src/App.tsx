@@ -6,6 +6,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { isAdminGlobal } from '@/lib/roles';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { HomePage } from '@/pages/HomePage';
+import { PartidosPage } from '@/pages/PartidosPage';
+import { CanchasPage } from '@/pages/CanchasPage';
+import { PerfilPage } from '@/pages/PerfilPage';
 
 const AdminPage = lazy(() => import('@/pages/AdminPage').then((m) => ({ default: m.AdminPage })));
 const MatchDetailPage = lazy(() => import('@/pages/MatchDetailPage').then((m) => ({ default: m.MatchDetailPage })));
@@ -35,6 +38,9 @@ export function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/partidos" element={<PartidosPage />} />
+            <Route path="/canchas" element={<CanchasPage />} />
+            <Route path="/perfil" element={<PerfilPage />} />
             <Route path="/admin" element={<AdminGuard />} />
             <Route
               path="/partido/:id"

@@ -2,17 +2,18 @@ import React from 'react';
 import clsx from 'clsx';
 
 type ButtonProps = {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'blue';
   size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
   fullWidth?: boolean;
 } & React.ButtonHTMLAttributes<HTMLButtonElement>;
 
 const variantStyles = {
-  primary: 'bg-ink text-white hover:bg-court shadow-soft hover:-translate-y-0.5',
-  secondary: 'border border-ink/15 bg-white text-ink hover:border-court hover:text-court hover:-translate-y-0.5',
-  ghost: 'text-ink/70 hover:text-ink hover:bg-ink/5',
-  danger: 'bg-red-600 text-white hover:bg-red-700',
+  primary: 'bg-vb-orange text-white hover:bg-vb-orange/90 shadow-card hover:-translate-y-0.5 hover:shadow-card-hover',
+  secondary: 'border border-vb-gray/15 bg-white text-vb-gray hover:border-vb-orange hover:text-vb-orange hover:-translate-y-0.5',
+  ghost: 'text-vb-gray/70 hover:text-vb-gray hover:bg-vb-gray/5',
+  danger: 'bg-vb-red text-white hover:bg-vb-red/90',
+  blue: 'bg-vb-blue text-white hover:bg-vb-blue/90 shadow-card hover:-translate-y-0.5 hover:shadow-card-hover',
 };
 
 const sizeStyles = {

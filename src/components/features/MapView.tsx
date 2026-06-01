@@ -34,7 +34,7 @@ function MapClubMarkers({
           center={[club.latitud!, club.longitud!]}
           eventHandlers={{ click: () => onSelectClub(club.id) }}
           key={`club-${club.id}`}
-          pathOptions={{ color: '#2d7d6f', fillColor: '#f5b85f', fillOpacity: 0.85 }}
+          pathOptions={{ color: '#1A237E', fillColor: '#FF6B35', fillOpacity: 0.85 }}
           radius={11}
         >
           <Popup>
@@ -43,7 +43,7 @@ function MapClubMarkers({
             {club.direccion ?? 'Direccion pendiente'}
             <br />
             <button
-              className="mt-2 rounded bg-court px-2 py-1 text-xs font-semibold text-white"
+              className="mt-2 rounded-lg bg-vb-orange px-3 py-1.5 text-xs font-bold text-white transition hover:bg-vb-orange/90"
               onClick={() => onSelectClub(club.id)}
               type="button"
             >
