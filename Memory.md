@@ -82,11 +82,17 @@ Se realizó un rediseño completo de la interfaz de VoleyApp con los siguientes 
 - Hero con buscador prominente y chips de filtro.
 - Mapa se muestra como preview en mobile y se expande al tocar.
 
+### Fix post-rediseño:
+- Se crearon páginas placeholder para las rutas del BottomNav: `/partidos`, `/canchas`, `/perfil`.
+- Se actualizó `App.tsx` con las nuevas rutas.
+- Se agregó formulario de login/registro en la página de Perfil (antes solo visible en sidebar desktop), solucionando pantalla en blanco en mobile.
+- El servidor de desarrollo ahora corre con `--host 0.0.0.0` para acceso desde celular en la misma red.
+
 ## Proximos pasos
 - Construir vistas de detalle:
   - `/cancha/:id`
   - `/partido/:id`
-- Implementar rutas para BottomNav: `/partidos`, `/canchas`, `/perfil`.
+- Implementar funcionalidad real en las páginas `/partidos` y `/canchas` (actualmente son placeholders).
 - Decidir si se corrigen los avisos heredados de PostGIS:
   - `ALTER TABLE public.spatial_ref_sys ENABLE ROW LEVEL SECURITY;`
   - mover extension PostGIS fuera del schema `public` solo si se valida impacto.
