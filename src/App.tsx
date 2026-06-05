@@ -1,10 +1,11 @@
-import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { useAuth } from '@/hooks/useAuth';
 import { isAdminGlobal } from '@/lib/roles';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { buscarPartidoPorToken } from '@/lib/booking';
 import { HomePage } from '@/pages/HomePage';
 import { PartidosPage } from '@/pages/PartidosPage';
 import { CanchasPage } from '@/pages/CanchasPage';
@@ -13,6 +14,28 @@ import { PerfilPage } from '@/pages/PerfilPage';
 const AdminPage = lazy(() => import('@/pages/AdminPage').then((m) => ({ default: m.AdminPage })));
 const MatchDetailPage = lazy(() => import('@/pages/MatchDetailPage').then((m) => ({ default: m.MatchDetailPage })));
 const CanchaDetailPage = lazy(() => import('@/pages/CanchaDetailPage').then((m) => ({ default: m.CanchaDetailPage })));
+
+function InviteRedirect() {
+  const { token } = useParams<{ token: string }>();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!token) { navigate('/'); return; }
+    buscarPartidoPorToken(token).then((partidoId) => {
+      if (partidoId) {
+        navigate(`/partido/${partidoId}`, { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
+    });
+  }, [token, navigate]);
+
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-vb-orange border-t-transparent" />
+    </div>
+  );
+}
 
 function AdminGuard() {
   const { session, perfil, loading } = useAuth();
@@ -70,6 +93,7 @@ export function App() {
                 </Suspense>
               }
             />
+            <Route path="/partido/invitar/:token" element={<InviteRedirect />} />
           </Routes>
           <Toaster position="bottom-right" richColors closeButton />
         </BrowserRouter>

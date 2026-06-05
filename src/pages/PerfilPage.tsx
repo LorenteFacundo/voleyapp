@@ -70,7 +70,7 @@ export function PerfilPage() {
               <p className="text-sm text-vb-gray/65">{session.user.email}</p>
             </div>
 
-            <div className="grid w-full grid-cols-2 gap-3 text-center">
+            <div className="grid w-full grid-cols-3 gap-3 text-center">
               <div className="rounded-xl bg-vb-light p-3">
                 <p className="text-2xl font-bold text-vb-orange">{perfil?.nivel_voley ?? '-'}</p>
                 <p className="text-xs text-vb-gray/60">Nivel</p>
@@ -78,6 +78,10 @@ export function PerfilPage() {
               <div className="rounded-xl bg-vb-light p-3">
                 <p className="text-2xl font-bold text-vb-blue capitalize">{perfil?.rol ?? 'jugador'}</p>
                 <p className="text-xs text-vb-gray/60">Rol</p>
+              </div>
+              <div className="rounded-xl bg-vb-light p-3">
+                <p className="text-2xl font-bold text-vb-green">{perfil?.partidos_jugados ?? 0}</p>
+                <p className="text-xs text-vb-gray/60">Jugados</p>
               </div>
             </div>
 

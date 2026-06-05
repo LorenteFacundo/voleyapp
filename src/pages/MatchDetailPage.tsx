@@ -18,6 +18,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePartidoDetalle } from '@/hooks/usePartidoDetalle';
 import { unirseAPartido, salirseDePartido, otorgarPuntos } from '@/lib/booking';
 import { MatchMessages } from '@/components/features/MatchMessages';
+import { ShareButton } from '@/components/features/ShareButton';
 import { formatDate, formatMoney } from '@/lib/format';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -132,7 +133,17 @@ export function MatchDetailPage() {
                 </p>
               )}
             </div>
-            <Badge variant="court">{partido.nivel_requerido}</Badge>
+            <div className="flex shrink-0 items-center gap-2">
+              <Badge variant="court">{partido.nivel_requerido}</Badge>
+              {partido.token_invitacion && (
+                <ShareButton
+                  token={partido.token_invitacion}
+                  clubNombre={partido.club_nombre}
+                  fecha={partido.fecha}
+                  horaInicio={partido.hora_inicio}
+                />
+              )}
+            </div>
           </div>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">

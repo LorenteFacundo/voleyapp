@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { CanchaDetalle, ClubPublico, Turno, TurnoVirtual, MensajePartido, BadgeCatalogo, UsuarioBadge, RankingEntry } from '../types';
+import type { CanchaDetalle, ClubPublico, Turno, TurnoVirtual, MensajePartido, BadgeCatalogo, UsuarioBadge, RankingEntry, Notificacion } from '../types';
 
 function sanitizeSearchTerm(term: string): string {
   return term.replace(/[(),.*]/g, '').trim();
@@ -184,4 +184,28 @@ export async function otorgarPuntos(usuarioId: string, puntos: number, motivo: s
     p_referencia_id: referenciaId ?? null,
   });
   if (error) console.error('Error otorgando puntos:', error.message);
+}
+
+// ============ FASE 2: NOTIFICACIONES ============
+
+export async function fetchNotificaciones(): Promise<Notificacion[]> {
+  const { data, error } = await supabase.rpc('mis_notificaciones');
+  if (error) throw new Error(error.message);
+  return (data ?? []) as unknown as Notificacion[];
+}
+
+export async function marcarNotificacionLeida(notificacionId: number) {
+  const { error } = await supabase.rpc('marcar_notificacion_leida', { p_notificacion_id: notificacionId });
+  if (error) console.error('Error marcando notificación:', error.message);
+}
+
+export async function marcarTodasLeidas() {
+  const { error } = await supabase.rpc('marcar_todas_leidas');
+  if (error) console.error('Error marcando notificaciones:', error.message);
+}
+
+export async function buscarPartidoPorToken(token: string): Promise<number | null> {
+  const { data, error } = await supabase.rpc('buscar_partido_por_token', { p_token: token });
+  if (error) return null;
+  return data as number | null;
 }

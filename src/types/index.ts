@@ -58,6 +58,7 @@ export type Perfil = {
   nivel_voley: number | null;
   rol: string | null;
   puntos_total: number | null;
+  partidos_jugados: number | null;
 };
 
 export type ClubPublico = {
@@ -103,6 +104,7 @@ export type PartidoDetalle = PartidoPublico & {
   club_id: number;
   participantes: Participante[] | null;
   mi_estado_inscripcion: string | null;
+  token_invitacion: string | null;
 };
 
 // Admin types
@@ -256,4 +258,14 @@ export type RankingEntry = {
   nivel_voley: number | null;
   puntos_total: number;
   posicion: number;
+};
+
+// Fase 2: Notificaciones
+export type Notificacion = {
+  id: number;
+  tipo: string;
+  titulo: string;
+  partido_id: number | null;
+  leida: boolean;
+  created_at: string;
 };

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { isAdminGlobal } from '@/lib/roles';
 import { Button } from '@/components/ui/Button';
+import { NotificationBell } from '@/components/features/NotificationBell';
 
 type HeaderProps = {
   onOpenBooking: () => void;
@@ -43,6 +44,7 @@ export function Header({ onOpenBooking, onRefresh }: HeaderProps) {
           <Button variant="secondary" size="sm" onClick={onRefresh}>
             Actualizar
           </Button>
+          <NotificationBell isAuthenticated={!!session} />
           {session ? (
             <Button variant="ghost" size="sm" onClick={signOut}>
               <LogOut size={16} />
@@ -53,6 +55,7 @@ export function Header({ onOpenBooking, onRefresh }: HeaderProps) {
 
         {/* Mobile: just user actions */}
         <div className="flex items-center gap-2 md:hidden">
+          <NotificationBell isAuthenticated={!!session} />
           {session ? (
             <button
               onClick={signOut}
