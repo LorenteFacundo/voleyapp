@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { CanchaDetalle, ClubPublico, Turno, TurnoVirtual } from '../types';
+import type { CanchaDetalle, ClubPublico, Turno, TurnoVirtual, MensajePartido, BadgeCatalogo, UsuarioBadge, RankingEntry } from '../types';
 
 function sanitizeSearchTerm(term: string): string {
   return term.replace(/[(),.*]/g, '').trim();
@@ -114,4 +114,76 @@ export function groupTurnosVirtualesByFecha(turnos: TurnoVirtual[]) {
     map.set(turno.fecha, list);
   });
   return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
+}
+
+// ============ FASE 3: SOCIAL ============
+
+export async function enviarMensaje(partidoId: number, texto: string) {
+  const { data, error } = await supabase.rpc('enviar_mensaje', {
+    p_partido_id: partidoId,
+    p_texto: texto,
+  });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function fetchMensajesPartido(partidoId: number): Promise<MensajePartido[]> {
+  const { data, error } = await supabase
+    .from('mensajes_partido')
+    .select('id, partido_id, usuario_id, texto, created_at, usuarios:usuario_id(nombre_completo)')
+    .eq('partido_id', partidoId)
+    .order('created_at', { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((m: any) => ({
+    id: m.id,
+    partido_id: m.partido_id,
+    usuario_id: m.usuario_id,
+    texto: m.texto,
+    created_at: m.created_at,
+    nombre: m.usuarios?.nombre_completo ?? 'Jugador',
+  }));
+}
+
+export async function fetchBadgesUsuario(usuarioId: string): Promise<UsuarioBadge[]> {
+  const { data, error } = await supabase
+    .from('usuario_badges')
+    .select('badge_id, otorgado_at, badges_catalogo:badge_id(nombre, descripcion, icono)')
+    .eq('usuario_id', usuarioId)
+    .order('otorgado_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((b: any) => ({
+    id: b.badge_id,
+    nombre: b.badges_catalogo?.nombre ?? b.badge_id,
+    descripcion: b.badges_catalogo?.descripcion ?? '',
+    icono: b.badges_catalogo?.icono ?? 'Award',
+    otorgado_at: b.otorgado_at,
+  }));
+}
+
+export async function fetchBadgesCatalogo(): Promise<BadgeCatalogo[]> {
+  const { data, error } = await supabase
+    .from('badges_catalogo')
+    .select('*')
+    .order('id');
+  if (error) throw new Error(error.message);
+  return (data ?? []) as BadgeCatalogo[];
+}
+
+export async function fetchRanking(limit = 20): Promise<RankingEntry[]> {
+  const { data, error } = await supabase
+    .from('ranking_jugadores')
+    .select('*')
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as unknown as RankingEntry[];
+}
+
+export async function otorgarPuntos(usuarioId: string, puntos: number, motivo: string, referenciaId?: number) {
+  const { error } = await supabase.rpc('otorgar_puntos', {
+    p_usuario_id: usuarioId,
+    p_puntos: puntos,
+    p_motivo: motivo,
+    p_referencia_id: referenciaId ?? null,
+  });
+  if (error) console.error('Error otorgando puntos:', error.message);
 }

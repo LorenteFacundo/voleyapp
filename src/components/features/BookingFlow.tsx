@@ -15,7 +15,7 @@ import { useClubes } from '@/hooks/useClubes';
 import { useCanchas } from '@/hooks/useCanchas';
 import { useTurnos } from '@/hooks/useTurnos';
 import { reservarTurnoRango, reservarTurnoVirtual, crearPartidoVirtual } from '@/lib/admin';
-import { turnoKey } from '@/lib/booking';
+import { turnoKey, otorgarPuntos } from '@/lib/booking';
 import { formatDate, formatMoney, formatTime } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import type { CanchaDetalle, ClubPublico, TurnoVirtual } from '@/types';
@@ -240,6 +240,9 @@ export function BookingFlow({ open, initialClubId, onClose, onRefresh }: Booking
           visibilidad: 'publico',
         });
         toast.success(`Partido creado y publicado. ID: ${partidoId}`);
+        if (session?.user?.id) {
+          otorgarPuntos(session.user.id, 10, 'crear_partido', partidoId);
+        }
       } else {
         const turnoIdReservado = await reservarTurnoRango({
           canchaId: selectedCancha.id,
@@ -264,6 +267,9 @@ export function BookingFlow({ open, initialClubId, onClose, onRefresh }: Booking
         }
 
         toast.success(`Partido creado y publicado. ID: ${data}`);
+        if (session?.user?.id) {
+          otorgarPuntos(session.user.id, 10, 'crear_partido', data);
+        }
       }
       await refreshTurnos();
       onRefresh();

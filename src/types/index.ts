@@ -57,6 +57,7 @@ export type Perfil = {
   email: string;
   nivel_voley: number | null;
   rol: string | null;
+  puntos_total: number | null;
 };
 
 export type ClubPublico = {
@@ -226,4 +227,33 @@ export type TurnoVirtual = {
   precio_total: number;
   precio_sena: number;
   horario_semanal_id: number;
+};
+
+// Fase 3: Social
+export type MensajePartido = {
+  id: number;
+  partido_id: number;
+  usuario_id: string;
+  texto: string;
+  created_at: string;
+  nombre?: string;
+};
+
+export type BadgeCatalogo = {
+  id: string;
+  nombre: string;
+  descripcion: string;
+  icono: string;
+};
+
+export type UsuarioBadge = BadgeCatalogo & {
+  otorgado_at: string;
+};
+
+export type RankingEntry = {
+  id: string;
+  nombre_completo: string | null;
+  nivel_voley: number | null;
+  puntos_total: number;
+  posicion: number;
 };

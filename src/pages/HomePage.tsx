@@ -11,6 +11,7 @@ import { MatchList } from '@/components/features/MatchList';
 import { BookingFlow } from '@/components/features/BookingFlow';
 import { UserPanel } from '@/components/features/UserPanel';
 import { AuthForm } from '@/components/features/AuthForm';
+import { RankingBoard } from '@/components/features/RankingBoard';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { toast } from 'sonner';
@@ -76,6 +77,8 @@ export function HomePage() {
                 </Button>
               </div>
             </Card>
+
+            <RankingBoard limit={10} />
           </aside>
         </div>
       </main>

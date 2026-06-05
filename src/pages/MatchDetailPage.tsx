@@ -16,7 +16,8 @@ import {
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { usePartidoDetalle } from '@/hooks/usePartidoDetalle';
-import { unirseAPartido, salirseDePartido } from '@/lib/booking';
+import { unirseAPartido, salirseDePartido, otorgarPuntos } from '@/lib/booking';
+import { MatchMessages } from '@/components/features/MatchMessages';
 import { formatDate, formatMoney } from '@/lib/format';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -48,6 +49,9 @@ export function MatchDetailPage() {
           ? 'Solicitud enviada. El organizador debe aprobarla.'
           : 'Te uniste al partido'
       );
+      if (session?.user?.id) {
+        otorgarPuntos(session.user.id, 5, 'unirse', partido.id);
+      }
       await refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al unirse');
@@ -63,6 +67,9 @@ export function MatchDetailPage() {
     try {
       await salirseDePartido(partido.id);
       toast.success('Saliste del partido');
+      if (session?.user?.id) {
+        otorgarPuntos(session.user.id, -5, 'salirse', partido.id);
+      }
       await refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al salir');
@@ -243,6 +250,14 @@ export function MatchDetailPage() {
               ))}
             </div>
           </Card>
+        )}
+
+        {/* Muro del partido */}
+        {yaInscripto && (
+          <MatchMessages
+            partidoId={partido.id}
+            puedeEscribir={partido.mi_estado_inscripcion === 'confirmado'}
+          />
         )}
 
         {partido.latitud && partido.longitud && (

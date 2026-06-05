@@ -1,4 +1,5 @@
-import { User, ArrowLeft, LogOut } from 'lucide-react';
+import { User, ArrowLeft, LogOut, Award } from 'lucide-react';
+import { BadgesGrid } from '@/components/features/BadgesGrid';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/Button';
@@ -78,6 +79,21 @@ export function PerfilPage() {
                 <p className="text-2xl font-bold text-vb-blue capitalize">{perfil?.rol ?? 'jugador'}</p>
                 <p className="text-xs text-vb-gray/60">Rol</p>
               </div>
+            </div>
+
+            {/* Puntos de actividad */}
+            <div className="w-full rounded-xl bg-vb-light p-4 text-center">
+              <p className="text-3xl font-black text-vb-orange">{perfil?.puntos_total ?? 0}</p>
+              <p className="text-xs text-vb-gray/60">Puntos de actividad</p>
+            </div>
+
+            {/* Badges */}
+            <div className="w-full">
+              <h3 className="mb-3 flex items-center gap-2 font-bold text-vb-blue">
+                <Award size={18} />
+                Mis badges
+              </h3>
+              <BadgesGrid usuarioId={session.user.id} />
             </div>
 
             <Button variant="danger" fullWidth onClick={signOut}>
