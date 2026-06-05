@@ -333,3 +333,41 @@ Nuevo modelo donde el admin define horarios por día de la semana (Lunes a Domin
 - Extensiones: postgis, pgcrypto
 
 **Nota:** Este es el snapshot del estado actual. Futuras migraciones se agregan como archivos incrementales en `supabase/migrations/`.
+
+### Fase 3 Social 2026-06-05 — Mensajes, Badges, Ranking
+
+**Rama:** `Desarrollo-Facu`
+
+**Features implementadas:**
+
+1. **Muro de mensajes** — Tablero simple por partido. Solo participantes confirmados pueden leer/escribir. 500 chars max. Sin realtime (pull-based).
+   - Tabla `mensajes_partido` con RLS
+   - RPC `enviar_mensaje(partido_id, texto)`
+   - Hook `useMensajesPartido` + componente `MatchMessages`
+   - Integrado en `MatchDetailPage` debajo de participantes
+
+2. **Badges de logros** — 6 badges desbloqueables automáticamente:
+   - Debut (1er partido), Racha de 3, Organizador nato (5+), Sociable (10+), Veterano (25+), Nivel competitivo (8+)
+   - Tablas `badges_catalogo` + `usuario_badges`
+   - RPC `verificar_badges(usuario_id)` evalúa condiciones y otorga
+   - Hook `useBadges` + componente `BadgesGrid`
+   - Integrado en `PerfilPage`
+
+3. **Ranking por puntos** — Sistema de puntos acumulados por actividad:
+   - Crear partido: +10, Unirse: +5, Salirse: -5
+   - Tabla `puntos_actividad` + columna `puntos_total` en `usuarios`
+   - RPC `otorgar_puntos(usuario_id, puntos, motivo, referencia_id)` que llama `verificar_badges`
+   - Vista `ranking_jugadores` (top 100)
+   - Hook `useRanking` + componente `RankingBoard`
+   - Integrado en `HomePage` sidebar y `PerfilPage`
+
+**Archivos nuevos:**
+- `src/hooks/useMensajesPartido.ts`, `useBadges.ts`, `useRanking.ts`
+- `src/components/features/MatchMessages.tsx`, `BadgesGrid.tsx`, `RankingBoard.tsx`
+- `supabase/migrations/00002_fase3_social.sql`
+
+**Archivos modificados:**
+- `src/types/index.ts` — +4 tipos
+- `src/lib/booking.ts` — +6 funciones
+- `src/pages/MatchDetailPage.tsx`, `PerfilPage.tsx`, `HomePage.tsx` — integraciones
+- `src/components/features/BookingFlow.tsx` — puntos al crear partido
