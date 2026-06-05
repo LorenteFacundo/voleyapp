@@ -2,7 +2,8 @@ import { useMemo } from 'react';
 import { Trophy, ArrowLeft, Users, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { usePartidos } from '@/hooks/usePartidos';
+import { usePartidosFiltrados } from '@/hooks/usePartidosFiltrados';
+import { MatchFilters } from '@/components/features/MatchFilters';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -13,7 +14,7 @@ export function PartidosPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
   const isAuthenticated = session != null;
-  const { partidos, loading } = usePartidos(isAuthenticated);
+  const { partidos, loading, filtros, setFiltros, refresh } = usePartidosFiltrados(isAuthenticated);
 
   const misOrganizados = useMemo(
     () => partidos.filter((p) => p.organizador_id === session?.user?.id),
@@ -69,6 +70,14 @@ export function PartidosPage() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-6">
+        <div className="mb-6">
+          <MatchFilters
+            filtros={filtros}
+            onFiltrosChange={setFiltros}
+            resultadoCount={partidos.length}
+          />
+        </div>
+
         {loading ? (
           <div className="grid gap-4 md:grid-cols-2">
             {Array.from({ length: 4 }).map((_, i) => (

@@ -73,14 +73,12 @@ export async function unirseAPartido(partidoId: number) {
   return data;
 }
 
-export async function salirseDePartido(partidoId: number) {
-  const { error } = await supabase.rpc('salirse_de_partido', {
+export async function salirseDePartido(partidoId: number): Promise<string> {
+  const { data, error } = await supabase.rpc('salirse_de_partido', {
     p_partido_id: partidoId,
   });
-
-  if (error) {
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message);
+  return data as string;
 }
 
 export async function obtenerTurnosDisponibles(

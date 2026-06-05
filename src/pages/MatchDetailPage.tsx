@@ -62,13 +62,15 @@ export function MatchDetailPage() {
 
   async function handleLeave() {
     if (!session || !partido) return;
-
     setLeaving(true);
     try {
-      await salirseDePartido(partido.id);
-      toast.success('Saliste del partido');
-      if (session?.user?.id) {
-        otorgarPuntos(session.user.id, -5, 'salirse', partido.id);
+      const resultado = await salirseDePartido(partido.id);
+      if (resultado === 'cancelado') {
+        toast.success('Partido cancelado. No había otros jugadores.');
+      } else if (resultado === 'saliste') {
+        toast.success('Saliste del partido');
+      } else {
+        toast.success(`Saliste del partido. ${resultado} es el nuevo organizador.`);
       }
       await refresh();
     } catch (err) {
@@ -108,7 +110,7 @@ export function MatchDetailPage() {
   const esOrganizador = session?.user?.id === partido.organizador_id;
   const partidoAbierto = partido.estado_partido === 'abierto' || partido.estado_partido === 'confirmado';
   const puedeUnirse = session && cupoDisponible && !yaInscripto && partidoAbierto;
-  const puedeSalirse = session && yaInscripto && !esOrganizador;
+  const puedeSalirse = session && yaInscripto;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -210,9 +212,15 @@ export function MatchDetailPage() {
                 onClick={handleLeave}
                 loading={leaving}
                 fullWidth
+                className={esOrganizador ? 'text-red-600 hover:text-red-700' : ''}
               >
                 <LogOut size={16} />
-                Salir del partido
+                {esOrganizador
+                  ? (partido.participantes && partido.participantes.length > 1
+                      ? 'Abandonar partido (transferir liderazgo)'
+                      : 'Cancelar partido')
+                  : 'Salir del partido'
+                }
               </Button>
             )}
           </div>
