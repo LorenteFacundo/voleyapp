@@ -401,3 +401,38 @@ Nuevo modelo donde el admin define horarios por día de la semana (Lunes a Domin
 - `src/lib/booking.ts` — `salirseDePartido` retorna `string`
 - `src/pages/MatchDetailPage.tsx` — botón abandonar para organizadores
 - `src/pages/PartidosPage.tsx` — integración de filtros
+
+### Fase 2 Engagement 2026-06-05 — Stats, Sharing, Notificaciones
+
+**Rama:** `Desarrollo-Facu`
+
+**Features implementadas:**
+
+1. **Estadísticas de perfil** — "Partidos jugados" en el perfil (columna `partidos_jugados` en usuarios, se actualiza al unirse/salirse). Historial detallado oculto por ahora.
+
+2. **Sharing y links de invitación** — Botón "Compartir" en MatchDetailPage:
+   - En mobile: Web Share API nativo
+   - En desktop: copia link al clipboard
+   - Link: `/partido/invitar/{token_invitacion}` → redirige al partido
+   - RPC `buscar_partido_por_token(token)` para resolver el token
+
+3. **Notificaciones in-app** — Sistema completo:
+   - Tabla `notificaciones` con RLS
+   - RPCs: `crear_notificacion`, `mis_notificaciones`, `marcar_notificacion_leida`, `marcar_todas_leidas`
+   - `NotificationBell` en Header (campanita + badge de no leídas + dropdown)
+   - Tipos: nueva_inscripcion, partido_confirmado, nuevo_organizador
+   - `unirse_a_partido` y `salirse_de_partido` crean notificaciones automáticamente
+   - Click en notificación navega al partido
+
+**Archivos nuevos:**
+- `src/components/features/ShareButton.tsx`
+- `src/components/features/NotificationBell.tsx`
+- `src/hooks/useNotificaciones.ts`
+
+**Archivos modificados:**
+- `src/pages/PerfilPage.tsx` — stats grid-cols-3 con partidos jugados
+- `src/pages/MatchDetailPage.tsx` — ShareButton
+- `src/components/layout/Header.tsx` — NotificationBell
+- `src/App.tsx` — ruta `/partido/invitar/:token`
+- `src/lib/booking.ts` — funciones de notificaciones y sharing
+- `src/types/index.ts` — tipo Notificacion, partidos_jugados en Perfil
