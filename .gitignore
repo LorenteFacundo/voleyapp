@@ -1,7 +1,9 @@
 node_modules
 dist
-.env
-.env.local
 .DS_Store
 *.log
 .agents
+.superpowers/
+*.tsbuildinfo
+skills-lock.json
+opencode.json
