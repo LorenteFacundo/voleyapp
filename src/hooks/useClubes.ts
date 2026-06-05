@@ -35,7 +35,10 @@ export function useClubes(search?: string) {
       .order('nombre', { ascending: true });
 
     if (debouncedSearch) {
-      query = query.or(`nombre.ilike.%${debouncedSearch}%,direccion.ilike.%${debouncedSearch}%`);
+      const safe = debouncedSearch.replace(/[(),.*]/g, '').trim();
+      if (safe) {
+        query = query.or(`nombre.ilike.%${safe}%,direccion.ilike.%${safe}%`);
+      }
     }
 
     const { data, error: fetchError } = await query;

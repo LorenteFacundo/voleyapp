@@ -279,3 +279,43 @@ Nuevo modelo donde el admin define horarios por día de la semana (Lunes a Domin
 - Al seleccionar una fecha, se muestran solo los horarios de esa fecha
 - Fechas sin turnos disponibles se muestran deshabilitadas
 - Mucho más compacto y fácil de usar
+
+### Fix 2026-06-05 — Bugs críticos y pages placeholder
+
+**Rama:** `Desarrollo-Facu` (igual a `main`)
+
+**Bugs corregidos:**
+
+1. **AdminGuard no esperaba `loading`** — Al refrescar `/admin`, el admin era redirigido a `/` antes de que cargue su perfil. Fix: mostrar spinner mientras `loading` es true en `App.tsx`.
+
+2. **UserPanel botón sin acción** — `onNavigateAdmin={() => {}}` en `HomePage.tsx`. Fix: pasar `() => navigate('/admin')`.
+
+3. **ExpandableMap inaccesible en desktop** — El trigger tenía `md:hidden` y el expanded view no se mostraba automáticamente. Fix: en desktop renderizar `MapView` directamente; en mobile mantener el comportamiento expandible.
+
+**Pages implementadas:**
+
+4. **PartidosPage** — Reemplazado placeholder con datos reales:
+   - Sección "Organizados por mí" (filtra por `organizador_id === session.user.id`)
+   - Sección "Inscripto en" (filtra por `mi_estado_inscripcion != null`)
+   - Empty states accionables
+   - Usa `MatchCard` para cada partido
+
+5. **CanchasPage** — Reemplazado placeholder con datos reales:
+   - Fetch de canchas con join a clubes (nombre, dirección)
+   - Búsqueda por nombre, club o dirección
+   - Grid de cards con foto, precio, seña
+   - Navegación a `/cancha/:id`
+   - Empty states con limpiar búsqueda
+
+**Validaciones:**
+
+6. **BookingFlow** — Validaciones frontend antes de llamar RPC:
+   - `cupoMaximo`: NaN check, rango 2-22
+   - `invitados`: NaN check, >= 0, < cupoMaximo
+   - Mensajes claros con `toast.error`
+
+7. **Sanitización de búsqueda** — `sanitizeSearchTerm()` en `booking.ts` y `useClubes.ts` que escapa `(`, `)`, `,`, `*`, `.` para prevenir injection en PostgREST `.or()`.
+
+**Backend:**
+
+8. **partidos_publicos** — Se agregó `organizador_id` a la vista para poder distinguir partidos propios en PartidosPage. Se recreó `partido_detalle` (CASCADE).

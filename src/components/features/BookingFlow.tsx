@@ -205,6 +205,21 @@ export function BookingFlow({ open, initialClubId, onClose, onRefresh }: Booking
     }
 
     const max = Number(cupoMaximo);
+    const inv = Number(invitados);
+
+    if (Number.isNaN(max) || max < 2 || max > 22) {
+      toast.error('El cupo máximo debe ser un número entre 2 y 22.');
+      return;
+    }
+    if (Number.isNaN(inv) || inv < 0) {
+      toast.error('Los invitados deben ser un número mayor o igual a 0.');
+      return;
+    }
+    if (inv >= max) {
+      toast.error('Los invitados deben ser menos que el cupo máximo.');
+      return;
+    }
+
     const min = Math.min(12, max); // evitar error si cupoMaximo < 12
 
     setSubmitting(true);
@@ -219,7 +234,7 @@ export function BookingFlow({ open, initialClubId, onClose, onRefresh }: Booking
           precioSena: selectedTurno.precio_sena,
           cupoMinimo: min,
           cupoMaximo: max,
-          invitados: Number(invitados),
+          invitados: inv,
           nivel: nivelPartido,
           requiereAprobacion: requiereAprobacion,
           visibilidad: 'publico',
@@ -238,7 +253,7 @@ export function BookingFlow({ open, initialClubId, onClose, onRefresh }: Booking
           p_turno_id: turnoIdReservado,
           p_cupo_minimo: min,
           p_cupo_maximo: max,
-          p_invitados: Number(invitados),
+          p_invitados: inv,
           p_nivel: nivelPartido,
           p_requiere_aprobacion: requiereAprobacion,
           p_visibilidad: 'publico',

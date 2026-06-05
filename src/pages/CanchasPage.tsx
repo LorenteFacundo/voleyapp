@@ -1,19 +1,76 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { MapPin, ArrowLeft, Search, DollarSign } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, MapPin, Phone, Search, Volleyball } from 'lucide-react';
-import { useAllCanchas } from '@/hooks/useAllCanchas';
+import { supabase } from '@/lib/supabase';
 import { formatMoney } from '@/lib/format';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { Badge } from '@/components/ui/Badge';
 import { BottomNav } from '@/components/layout/BottomNav';
+
+type CanchaConClub = {
+  id: number;
+  titulo: string;
+  descripcion: string | null;
+  fotos: string[];
+  precio_total: number;
+  precio_sena: number;
+  club_nombre: string;
+  club_direccion: string | null;
+};
 
 export function CanchasPage() {
   const navigate = useNavigate();
+  const [canchas, setCanchas] = useState<CanchaConClub[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const { canchas, loading } = useAllCanchas(search);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    supabase
+      .from('canchas')
+      .select(`
+        id, titulo, descripcion, fotos, precio_total, precio_sena,
+        clubes:club_id (nombre, direccion)
+      `)
+      .order('titulo', { ascending: true })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error('Error fetching canchas:', error);
+          setCanchas([]);
+        } else {
+          const mapped = (data ?? []).map((c: any) => ({
+            id: c.id,
+            titulo: c.titulo,
+            descripcion: c.descripcion,
+            fotos: c.fotos ?? [],
+            precio_total: c.precio_total,
+            precio_sena: c.precio_sena,
+            club_nombre: c.clubes?.nombre ?? 'Sin club',
+            club_direccion: c.clubes?.direccion ?? null,
+          }));
+          setCanchas(mapped);
+        }
+        setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, []);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return canchas;
+    const term = search.toLowerCase();
+    return canchas.filter(
+      (c) =>
+        c.titulo.toLowerCase().includes(term) ||
+        c.club_nombre.toLowerCase().includes(term) ||
+        (c.club_direccion?.toLowerCase().includes(term) ?? false)
+    );
+  }, [canchas, search]);
 
   return (
     <div className="app-shell pb-20 md:pb-0">
@@ -32,115 +89,95 @@ export function CanchasPage() {
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-vb-gray/40" size={18} />
           <Input
             className="pl-10"
-            placeholder="Buscar por nombre de cancha..."
+            placeholder="Buscar por nombre, club o dirección..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
 
-        {/* Count */}
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-vb-blue">Canchas disponibles</h2>
-          <span className="rounded-full bg-vb-orange-light px-3 py-1 text-xs font-bold text-vb-orange">
-            {loading ? '...' : `${canchas.length}`}
-          </span>
-        </div>
-
-        {/* List */}
         {loading ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <Skeleton key={i} height={220} rounded />
             ))}
           </div>
-        ) : canchas.length === 0 ? (
-          <Card padding="lg">
-            <div className="flex flex-col items-center gap-4 py-12 text-center">
-              <div className="grid h-16 w-16 place-items-center rounded-full bg-vb-orange-light text-vb-orange">
-                <Volleyball size={32} />
-              </div>
-              <div>
-                <h3 className="font-bold text-vb-blue">No se encontraron canchas</h3>
-                <p className="mt-1 text-sm text-vb-gray/65">
-                  {search ? 'Probá con otro término de búsqueda.' : 'Todavía no hay canchas publicadas.'}
-                </p>
-              </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center gap-4 py-16 text-center">
+            <div className="grid h-20 w-20 place-items-center rounded-full bg-vb-orange-light text-vb-orange">
+              <MapPin size={40} />
             </div>
-          </Card>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 animate-stagger">
-            {canchas.map((cancha) => (
-              <Card
-                key={cancha.id}
-                hover
-                padding="none"
-                className="group cursor-pointer overflow-hidden"
-                role="link"
-                tabIndex={0}
-                onClick={() => navigate(`/cancha/${cancha.id}`)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    navigate(`/cancha/${cancha.id}`);
-                  }
-                }}
-              >
-                {/* Image */}
-                {cancha.fotos[0] ? (
-                  <img
-                    alt={cancha.titulo}
-                    className="h-40 w-full object-cover transition group-hover:scale-105"
-                    src={cancha.fotos[0]}
-                  />
-                ) : (
-                  <div className="grid h-40 place-items-center bg-court/5 text-court">
-                    <Volleyball size={40} />
-                  </div>
-                )}
-
-                <div className="p-4">
-                  {/* Club name */}
-                  {cancha.clubes && (
-                    <p className="flex items-center gap-1.5 text-xs text-vb-gray/60">
-                      <MapPin size={12} />
-                      <span className="truncate">{cancha.clubes.nombre}</span>
-                    </p>
-                  )}
-
-                  {/* Title */}
-                  <h3 className="mt-1 text-lg font-bold text-vb-blue truncate group-hover:text-vb-orange transition-colors">
-                    {cancha.titulo}
-                  </h3>
-
-                  {/* Description */}
-                  {cancha.descripcion && (
-                    <p className="mt-1 line-clamp-2 text-sm text-vb-gray/65">
-                      {cancha.descripcion}
-                    </p>
-                  )}
-
-                  {/* Info row */}
-                  <div className="mt-3 flex items-center justify-between gap-2">
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="court">{formatMoney(cancha.precio_total)}</Badge>
-                      {cancha.clubes?.direccion && (
-                        <span className="flex items-center gap-1 text-xs text-vb-gray/55">
-                          <MapPin size={11} />
-                          <span className="truncate max-w-[120px]">{cancha.clubes.direccion}</span>
-                        </span>
-                      )}
-                    </div>
-                    {cancha.clubes?.telefono && (
-                      <span className="flex items-center gap-1 text-xs text-vb-gray/55">
-                        <Phone size={11} />
-                        {cancha.clubes.telefono}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            ))}
+            <h2 className="text-2xl font-bold text-vb-blue">
+              {search ? 'Sin resultados' : 'Sin canchas disponibles'}
+            </h2>
+            <p className="max-w-sm text-vb-gray/65">
+              {search
+                ? 'No se encontraron canchas con ese criterio. Probá con otro término.'
+                : 'Todavía no hay canchas publicadas. Volvé más tarde.'}
+            </p>
+            {search && (
+              <Button variant="secondary" onClick={() => setSearch('')}>
+                Limpiar búsqueda
+              </Button>
+            )}
           </div>
+        ) : (
+          <>
+            <p className="mb-4 text-sm text-vb-gray/60">
+              {filtered.length} cancha{filtered.length !== 1 ? 's' : ''} encontrada{filtered.length !== 1 ? 's' : ''}
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {filtered.map((cancha) => (
+                <Card
+                  key={cancha.id}
+                  hover
+                  padding="none"
+                  className="cursor-pointer overflow-hidden"
+                  role="link"
+                  tabIndex={0}
+                  onClick={() => navigate(`/cancha/${cancha.id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      navigate(`/cancha/${cancha.id}`);
+                    }
+                  }}
+                >
+                  {cancha.fotos[0] ? (
+                    <img
+                      src={cancha.fotos[0]}
+                      alt={cancha.titulo}
+                      className="h-40 w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-40 items-center justify-center bg-vb-light text-vb-orange">
+                      <MapPin size={40} />
+                    </div>
+                  )}
+                  <div className="p-4">
+                    <h3 className="font-bold text-vb-blue truncate">{cancha.titulo}</h3>
+                    <p className="mt-1 flex items-center gap-1 text-sm text-vb-gray/60">
+                      <MapPin size={14} />
+                      <span className="truncate">{cancha.club_nombre}</span>
+                    </p>
+                    {cancha.club_direccion && (
+                      <p className="mt-0.5 text-xs text-vb-gray/50 truncate">
+                        {cancha.club_direccion}
+                      </p>
+                    )}
+                    <div className="mt-3 flex items-center justify-between">
+                      <Badge variant="court">
+                        <DollarSign size={12} className="mr-0.5" />
+                        {formatMoney(cancha.precio_total)}
+                      </Badge>
+                      <span className="text-xs text-vb-gray/50">
+                        Seña {formatMoney(cancha.precio_sena)}
+                      </span>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </>
         )}
       </main>
 

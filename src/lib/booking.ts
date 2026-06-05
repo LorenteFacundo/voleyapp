@@ -1,10 +1,14 @@
 import { supabase } from './supabase';
 import type { CanchaDetalle, ClubPublico, Turno, TurnoVirtual } from '../types';
 
+function sanitizeSearchTerm(term: string): string {
+  return term.replace(/[(),.*]/g, '').trim();
+}
+
 export async function fetchClubes(search = '') {
   let query = supabase.from('clubes_publicos').select('*').order('nombre', { ascending: true });
 
-  const term = search.trim();
+  const term = sanitizeSearchTerm(search);
   if (term) {
     query = query.or(`nombre.ilike.%${term}%,direccion.ilike.%${term}%`);
   }

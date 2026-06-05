@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { usePartidos } from '@/hooks/usePartidos';
 import { useClubes } from '@/hooks/useClubes';
@@ -17,6 +18,7 @@ import { Plus } from 'lucide-react';
 
 export function HomePage() {
   const { session, perfil } = useAuth();
+  const navigate = useNavigate();
   const isAuthenticated = session != null;
 
   const { partidos, loading: loadingPartidos, refresh: refreshPartidos } = usePartidos(isAuthenticated);
@@ -56,7 +58,7 @@ export function HomePage() {
           {/* Sidebar (desktop) */}
           <aside className="hidden content-start gap-6 lg:grid">
             {session ? (
-              <UserPanel onNavigateAdmin={() => {}} />
+              <UserPanel onNavigateAdmin={() => navigate('/admin')} />
             ) : (
               <Card padding="md">
                 <AuthForm onMessage={(msg) => toast(msg)} />

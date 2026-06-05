@@ -15,7 +15,18 @@ const MatchDetailPage = lazy(() => import('@/pages/MatchDetailPage').then((m) =>
 const CanchaDetailPage = lazy(() => import('@/pages/CanchaDetailPage').then((m) => ({ default: m.CanchaDetailPage })));
 
 function AdminGuard() {
-  const { session, perfil } = useAuth();
+  const { session, perfil, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-vb-orange border-t-transparent" />
+          <p className="text-sm text-vb-gray/60">Verificando acceso...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!session) {
     return <Navigate to="/" replace />;
