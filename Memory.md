@@ -371,3 +371,33 @@ Nuevo modelo donde el admin define horarios por día de la semana (Lunes a Domin
 - `src/lib/booking.ts` — +6 funciones
 - `src/pages/MatchDetailPage.tsx`, `PerfilPage.tsx`, `HomePage.tsx` — integraciones
 - `src/components/features/BookingFlow.tsx` — puntos al crear partido
+
+### Fase 1 Fundamento 2026-06-05 — Liderazgo + Búsqueda avanzada
+
+**Rama:** `Desarrollo-Facu`
+
+**Features implementadas:**
+
+1. **Transferencia de liderazgo** — Cuando el organizador abandona un partido:
+   - Si hay otros participantes → el más antiguo se convierte en organizador
+   - Si no hay nadie → el partido se cancela
+   - RPC `salirse_de_partido` modificado para retornar texto (nombre del nuevo organizador, 'cancelado', o 'saliste')
+   - MatchDetailPage muestra botón contextual: "Cancelar partido" (si es el único) o "Abandonar partido (transferir liderazgo)"
+
+2. **Búsqueda avanzada de partidos** — Filtros combinables:
+   - Por nivel: Recreativo / Intermedio / Competitivo
+   - Por texto: busca en club_nombre, cancha_nombre, direccion
+   - Por cercanía: 5km, 10km, 25km, 50km usando PostGIS `ST_DWithin`
+   - RPC `buscar_partidos(p_nivel, p_texto, p_lat, p_lng, p_radio_km)`
+   - Componente `MatchFilters` con panel expandible de filtros
+   - Hook `usePartidosFiltrados` que alterna entre RPC (con filtros) y query directa (sin filtros)
+   - Integrado en `PartidosPage` con contador de resultados
+
+**Archivos nuevos:**
+- `src/components/features/MatchFilters.tsx`
+- `src/hooks/usePartidosFiltrados.ts`
+
+**Archivos modificados:**
+- `src/lib/booking.ts` — `salirseDePartido` retorna `string`
+- `src/pages/MatchDetailPage.tsx` — botón abandonar para organizadores
+- `src/pages/PartidosPage.tsx` — integración de filtros
