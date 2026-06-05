@@ -319,3 +319,17 @@ Nuevo modelo donde el admin define horarios por día de la semana (Lunes a Domin
 **Backend:**
 
 8. **partidos_publicos** — Se agregó `organizador_id` a la vista para poder distinguir partidos propios en PartidosPage. Se recreó `partido_detalle` (CASCADE).
+
+### Schema Supabase versionado 2026-06-05
+
+**Archivo:** `supabase/migrations/00001_initial_schema.sql`
+
+**Contenido:**
+- 8 tablas: usuarios, clubes, canchas, disponibilidad_turnos, horarios_semanales, reservas, partidos, participantes_partido
+- 3 vistas con `security_invoker=true`: clubes_publicos, partidos_publicos, partido_detalle
+- 28 funciones RPC (admin CRUD, crear_partido, unirse, salirse, reservar, turnos virtuales)
+- RLS policies completas para todas las tablas
+- Schema `private` con `is_admin_global()` helper
+- Extensiones: postgis, pgcrypto
+
+**Nota:** Este es el snapshot del estado actual. Futuras migraciones se agregan como archivos incrementales en `supabase/migrations/`.
