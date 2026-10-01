@@ -3,7 +3,7 @@ import { useState } from 'react';
 
 const quickFilters = ['Hoy', 'Este finde', 'Mi nivel'];
 
-export function HeroSection({ onSearch }: { onSearch?: (query: string) => void }) {
+export function HeroSection({ onSearch, onQuickFilter }: { onSearch?: (query: string) => void; onQuickFilter?: (filter: string | null) => void }) {
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
@@ -47,7 +47,7 @@ export function HeroSection({ onSearch }: { onSearch?: (query: string) => void }
           {quickFilters.map((filter) => (
             <button
               key={filter}
-              onClick={() => setActiveFilter(activeFilter === filter ? null : filter)}
+              onClick={() => { const next = activeFilter === filter ? null : filter; setActiveFilter(next); onQuickFilter?.(next); }}
               className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${
                 activeFilter === filter
                   ? 'bg-vb-orange text-white'

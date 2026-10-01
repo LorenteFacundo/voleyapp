@@ -3,7 +3,8 @@ export function formatDate(value: string) {
     weekday: 'short',
     day: '2-digit',
     month: 'short',
-  }).format(new Date(`${value}T12:00:00`));
+    timeZone: 'America/Argentina/Buenos_Aires',
+  }).format(new Date(`${value}T12:00:00Z`));
 }
 
 export function formatTime(value: string) {

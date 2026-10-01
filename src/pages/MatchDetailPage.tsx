@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import {
   ArrowLeft,
@@ -16,11 +16,14 @@ import {
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { usePartidoDetalle } from '@/hooks/usePartidoDetalle';
-import { unirseAPartido, salirseDePartido, otorgarPuntos } from '@/lib/booking';
+import { unirseAPartido, salirseDePartido } from '@/lib/booking';
 import { MatchMessages } from '@/components/features/MatchMessages';
 import { ShareButton } from '@/components/features/ShareButton';
 import { formatDate, formatMoney } from '@/lib/format';
 import { Button } from '@/components/ui/Button';
+import { supabase } from '@/lib/supabase';
+import { pilotBookingsEnabled } from '@/lib/pilot';
+import { preservePostAuthRoute } from '@/lib/navigation';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -28,15 +31,30 @@ import { Skeleton } from '@/components/ui/Skeleton';
 export function MatchDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { session } = useAuth();
   const partidoId = id && !isNaN(Number(id)) ? Number(id) : null;
-  const { partido, loading, error, refresh } = usePartidoDetalle(partidoId);
+  const { partido, loading, error, refresh } = usePartidoDetalle(partidoId, searchParams.get('invite'));
   const [joining, setJoining] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [resolving, setResolving] = useState(false);
+
+  async function resolverParticipante(usuarioId: string, aprobar: boolean) {
+    if (!partido) return;
+    setResolving(true);
+    const { error } = await supabase.rpc('pilot_resolver_participante', {
+      p_partido_id: partido.id, p_usuario_id: usuarioId, p_aprobar: aprobar,
+    });
+    setResolving(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success(aprobar ? 'Jugador aprobado' : 'Solicitud rechazada');
+    refresh();
+  }
 
   async function handleJoin() {
     if (!session) {
-      toast.error('Inicia sesión para unirte al partido');
+      preservePostAuthRoute(`${window.location.pathname}${window.location.search}`);
+      navigate('/perfil');
       return;
     }
 
@@ -44,14 +62,13 @@ export function MatchDetailPage() {
 
     setJoining(true);
     try {
-      await unirseAPartido(partido.id);
+      await unirseAPartido(partido.id, searchParams.get('invite'));
       toast.success(
         partido.requiere_aprobacion
           ? 'Solicitud enviada. El organizador debe aprobarla.'
           : 'Te uniste al partido'
       );
       if (session?.user?.id) {
-        otorgarPuntos(session.user.id, 5, 'unirse', partido.id);
       }
       await refresh();
     } catch (err) {
@@ -92,7 +109,7 @@ export function MatchDetailPage() {
   if (error || !partido) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-8">
-        <Button variant="ghost" onClick={() => navigate('/')}>
+        <Button variant="ghost" onClick={() => navigate('/app')}>
           <ArrowLeft size={16} />
           Volver
         </Button>
@@ -109,13 +126,15 @@ export function MatchDetailPage() {
   const cupoDisponible = partido.jugadores_confirmados < partido.cupo_maximo;
   const yaInscripto = partido.mi_estado_inscripcion != null;
   const esOrganizador = session?.user?.id === partido.organizador_id;
-  const partidoAbierto = partido.estado_partido === 'abierto' || partido.estado_partido === 'confirmado';
-  const puedeUnirse = session && cupoDisponible && !yaInscripto && partidoAbierto;
+  const estadoCancha = partido.estado_cancha ?? (partido.estado_partido === 'pre_reservado' ? 'pendiente' : 'confirmada');
+  const estadoGrupo = partido.estado_grupo ?? (cupoDisponible ? 'faltan_jugadores' : 'grupo_completo');
+  const partidoAbierto = estadoGrupo !== 'cancelado' && estadoGrupo !== 'grupo_completo';
+  const puedeUnirse = session && pilotBookingsEnabled && cupoDisponible && !yaInscripto && partidoAbierto;
   const puedeSalirse = session && yaInscripto;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <Button variant="ghost" onClick={() => navigate('/')}>
+      <Button variant="ghost" onClick={() => navigate('/app')}>
         <ArrowLeft size={16} />
         Volver
       </Button>
@@ -186,6 +205,15 @@ export function MatchDetailPage() {
             </div>
           </div>
 
+          <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
+            <span className={`rounded-full px-3 py-1.5 ${estadoCancha === 'pendiente' ? 'bg-amber-100 text-amber-900' : 'bg-green-100 text-green-800'}`}>
+              {estadoCancha === 'pendiente' ? 'Cancha pendiente de confirmación' : 'Cancha confirmada'}
+            </span>
+            <span className="rounded-full bg-vb-blue/5 px-3 py-1.5 text-vb-blue">
+              {estadoGrupo === 'grupo_completo' ? 'Grupo completo' : 'Faltan jugadores'}
+            </span>
+          </div>
+
           {partido.requiere_aprobacion && (
             <div className="mt-4 flex items-center gap-2 rounded-md bg-sand/10 px-3 py-2 text-sm text-ink/70">
               <AlertCircle size={16} />
@@ -206,13 +234,14 @@ export function MatchDetailPage() {
                 <UserPlus size={16} />
                 Unirse al partido
               </Button>
-            ) : !session ? (
-              <Button variant="secondary" disabled fullWidth>
-                Inicia sesión para unirte
+            ) : !session && cupoDisponible && partidoAbierto && pilotBookingsEnabled ? (
+              <Button variant="secondary" onClick={handleJoin} fullWidth>
+                <UserPlus size={16} />
+                Iniciar sesión para unirte
               </Button>
             ) : (
               <Button variant="secondary" disabled fullWidth>
-                {partidoAbierto ? 'Partido lleno' : 'Partido cerrado'}
+                {!pilotBookingsEnabled ? 'Inscripciones pausadas' : partidoAbierto ? 'Partido lleno' : 'Partido cerrado'}
               </Button>
             )}
 
@@ -265,6 +294,7 @@ export function MatchDetailPage() {
                       ? 'Confirmado'
                       : 'Pendiente'}
                   </Badge>
+                  {pilotBookingsEnabled && esOrganizador && p.estado_inscripcion === 'pendiente_aprobacion' && <div className="flex gap-2"><button disabled={resolving} onClick={() => void resolverParticipante(p.usuario_id, true)} className="rounded-lg bg-vb-green px-2 py-1 text-xs font-bold text-white">Aprobar</button><button disabled={resolving} onClick={() => void resolverParticipante(p.usuario_id, false)} className="rounded-lg bg-vb-red px-2 py-1 text-xs font-bold text-white">Rechazar</button></div>}
                 </div>
               ))}
             </div>

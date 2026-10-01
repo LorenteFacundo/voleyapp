@@ -14,6 +14,7 @@ type AuthContextValue = {
   session: Session | null;
   perfil: Perfil | null;
   loading: boolean;
+  refreshPerfil: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<string | null>;
   signUp: (
     email: string,
@@ -29,7 +30,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 async function fetchPerfil(userId: string): Promise<Perfil | null> {
   const { data, error } = await supabase
     .from('usuarios')
-    .select('*')
+    .select('id, nombre_completo, nivel_voley, rol, puntos_total, partidos_jugados')
     .eq('id', userId)
     .maybeSingle();
 
@@ -116,9 +117,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   }, []);
 
+  const refreshPerfil = useCallback(async (): Promise<void> => {
+    const userId = session?.user.id;
+    if (!userId) {
+      setPerfil(null);
+      return;
+    }
+    setPerfil(await fetchPerfil(userId));
+  }, [session?.user.id]);
+
   return (
     <AuthContext.Provider
-      value={{ session, perfil, loading, signIn, signUp, signOut }}
+      value={{ session, perfil, loading, refreshPerfil, signIn, signUp, signOut }}
     >
       {children}
     </AuthContext.Provider>

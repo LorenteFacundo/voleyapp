@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import { formatDate, formatTime, formatMoney } from '@/lib/format';
 import { turnoKey } from '@/lib/booking';
@@ -37,9 +37,20 @@ export function ScheduleBoard({ turnos, selectedTurnoKey, onSelect }: ScheduleBo
     slots.some((s) => s.estado === 'disponible')
   );
 
-  const [selectedFecha, setSelectedFecha] = useState<string | null>(
-    fechasConDisponibles[0]?.[0] ?? fechas[0]?.[0] ?? null
-  );
+  const [selectedFecha, setSelectedFecha] = useState<string | null>(null);
+  const selectedSlotFecha = selectedTurnoKey
+    ? turnos.find((turno) => turnoKey(turno) === selectedTurnoKey)?.fecha ?? null
+    : null;
+  const firstAvailableDate = fechasConDisponibles[0]?.[0] ?? fechas[0]?.[0] ?? null;
+  const dateKeys = fechas.map(([fecha]) => fecha).join('|');
+
+  useEffect(() => {
+    setSelectedFecha((current) => {
+      if (selectedSlotFecha) return selectedSlotFecha;
+      if (current && dateKeys.split('|').includes(current)) return current;
+      return firstAvailableDate;
+    });
+  }, [dateKeys, firstAvailableDate, selectedSlotFecha]);
 
   if (fechas.length === 0) {
     return (

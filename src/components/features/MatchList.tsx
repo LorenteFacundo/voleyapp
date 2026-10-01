@@ -1,4 +1,4 @@
-import { ShieldCheck, Volleyball } from 'lucide-react';
+import { Volleyball } from 'lucide-react';
 import type { PartidoPublico } from '@/types';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -10,7 +10,7 @@ type MatchListProps = {
   isAuthenticated: boolean;
 };
 
-export function MatchList({ partidos, loading, isAuthenticated }: MatchListProps) {
+export function MatchList({ partidos, loading }: MatchListProps) {
   return (
     <div className="grid gap-4">
       <div className="flex items-center justify-between">
@@ -20,24 +20,7 @@ export function MatchList({ partidos, loading, isAuthenticated }: MatchListProps
         </span>
       </div>
 
-      {!isAuthenticated ? (
-        <Card padding="lg">
-          <div className="flex items-start gap-4">
-            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-vb-orange-light text-vb-orange">
-              <ShieldCheck size={24} />
-            </div>
-            <div>
-              <h3 className="font-bold text-vb-blue">
-                Iniciá sesión para ver y crear partidos
-              </h3>
-              <p className="mt-1 text-sm text-vb-gray/65">
-                Las canchas se pueden explorar, pero los partidos usan tu
-                usuario para cuidar reservas e inscripciones.
-              </p>
-            </div>
-          </div>
-        </Card>
-      ) : loading ? (
+      {loading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} height={180} rounded />

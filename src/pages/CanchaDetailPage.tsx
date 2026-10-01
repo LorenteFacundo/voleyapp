@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import {
   ArrowLeft,
@@ -14,10 +14,9 @@ import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { useCanchaDetalle } from '@/hooks/useCanchaDetalle';
 import { useTurnos } from '@/hooks/useTurnos';
-import { reservarTurnoRango, reservarTurnoVirtual, crearPartidoVirtual } from '@/lib/admin';
 import { turnoKey } from '@/lib/booking';
+import { solicitarReserva, solicitarPartido } from '@/lib/pilot';
 import { formatDate, formatMoney, formatTime } from '@/lib/format';
-import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -25,20 +24,22 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Input } from '@/components/ui/Input';
 import { ScheduleBoard } from '@/components/features/ScheduleBoard';
 import type { TurnoVirtual } from '@/types';
+import { preservePostAuthRoute } from '@/lib/navigation';
+import { pilotBookingsEnabled } from '@/lib/pilot';
+import { todayArgentinaISO } from '@/lib/date';
 
 export function CanchaDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { session } = useAuth();
   const canchaId = id && !isNaN(Number(id)) ? Number(id) : null;
   const { cancha, loading, error } = useCanchaDetalle(canchaId);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayArgentinaISO();
   const { turnos, loading: loadingTurnos, refresh: refreshTurnos } = useTurnos(canchaId, today);
 
   const [selectedTurno, setSelectedTurno] = useState<TurnoVirtual | null>(null);
-  const [horaInicioCustom, setHoraInicioCustom] = useState('');
-  const [horaFinCustom, setHoraFinCustom] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   // Organizar partido form
@@ -47,25 +48,46 @@ export function CanchaDetailPage() {
   const [invitados, setInvitados] = useState('0');
   const [nivelPartido, setNivelPartido] = useState('recreativo');
   const [requiereAprobacion, setRequiereAprobacion] = useState(false);
+  const [resumeIntent, setResumeIntent] = useState<string | null>(null);
+  const restoredAction = useRef(false);
 
-  const horaInicio = selectedTurno && horaInicioCustom
-    ? horaInicioCustom
-    : selectedTurno?.hora_inicio.slice(0, 5) ?? '';
+  useEffect(() => {
+    if (loadingTurnos || restoredAction.current) return;
+    const intent = searchParams.get('continuar');
+    if (!intent) return;
+    restoredAction.current = true;
+    const fecha = searchParams.get('fecha');
+    const inicio = searchParams.get('inicio');
+    const fin = searchParams.get('fin');
+    const slot = turnos.find((turno) => turno.estado === 'disponible' && turno.fecha === fecha &&
+      turno.hora_inicio.slice(0, 5) === inicio && turno.hora_fin.slice(0, 5) === fin);
+    if (slot && inicio && fin && ['reservar', 'organizar'].includes(intent)) {
+      setSelectedTurno(slot);
+      setResumeIntent(intent);
+      setShowForm(intent === 'organizar');
+    } else {
+      toast.error('Ese horario ya no está disponible. Elegí uno actualizado para continuar.');
+    }
+    const cleanParams = new URLSearchParams(searchParams);
+    ['continuar', 'fecha', 'inicio', 'fin'].forEach((key) => cleanParams.delete(key));
+    setSearchParams(cleanParams, { replace: true });
+  }, [loadingTurnos, searchParams, setSearchParams, turnos]);
 
-  const horaFin = selectedTurno && horaFinCustom
-    ? horaFinCustom
-    : selectedTurno?.hora_fin.slice(0, 5) ?? '';
+  const horaInicio = selectedTurno?.hora_inicio.slice(0, 5) ?? '';
+  const horaFin = selectedTurno?.hora_fin.slice(0, 5) ?? '';
 
   function handleSelectTurno(turno: TurnoVirtual) {
     setSelectedTurno(turno);
-    setHoraInicioCustom(turno.hora_inicio.slice(0, 5));
-    setHoraFinCustom(turno.hora_fin.slice(0, 5));
     setShowForm(false);
   }
 
   async function handleReservar() {
     if (!session) {
-      toast.error('Iniciá sesión para reservar.');
+      if (cancha && selectedTurno && pilotBookingsEnabled) {
+        const params = new URLSearchParams({ continuar: 'reservar', fecha: selectedTurno.fecha, inicio: horaInicio, fin: horaFin });
+        preservePostAuthRoute(`/cancha/${cancha.id}?${params.toString()}`);
+        navigate('/perfil');
+      }
       return;
     }
     if (!cancha || !selectedTurno) return;
@@ -76,26 +98,11 @@ export function CanchaDetailPage() {
 
     setSubmitting(true);
     try {
-      if (selectedTurno.id === null) {
-        await reservarTurnoVirtual({
-          canchaId: cancha.id,
-          fecha: selectedTurno.fecha,
-          horaInicio,
-          horaFin,
-          precioTotal: selectedTurno.precio_total,
-          precioSena: selectedTurno.precio_sena,
-        });
-      } else {
-        await reservarTurnoRango({
-          canchaId: cancha.id,
-          fecha: selectedTurno.fecha,
-          horaInicio,
-          horaFin,
-        });
-      }
-      toast.success(`Cancha reservada: ${formatDate(selectedTurno.fecha)} ${horaInicio}–${horaFin}`);
+      const result = await solicitarReserva(cancha.id, selectedTurno, horaInicio, horaFin);
+      toast.success(result.pending ? `Solicitud enviada para ${formatDate(selectedTurno.fecha)} ${horaInicio}–${horaFin}. El club debe confirmarla.` : `Cancha reservada: ${formatDate(selectedTurno.fecha)} ${horaInicio}–${horaFin}`);
       await refreshTurnos();
       setSelectedTurno(null);
+      setResumeIntent(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'No se pudo reservar.');
     } finally {
@@ -105,7 +112,11 @@ export function CanchaDetailPage() {
 
   async function handleOrganizarPartido() {
     if (!session) {
-      toast.error('Iniciá sesión para organizar un partido.');
+      if (cancha && selectedTurno && pilotBookingsEnabled) {
+        const params = new URLSearchParams({ continuar: 'organizar', fecha: selectedTurno.fecha, inicio: horaInicio, fin: horaFin });
+        preservePostAuthRoute(`/cancha/${cancha.id}?${params.toString()}`);
+        navigate('/perfil');
+      }
       return;
     }
     if (!cancha || !selectedTurno) return;
@@ -119,48 +130,13 @@ export function CanchaDetailPage() {
 
     setSubmitting(true);
     try {
-      if (selectedTurno.id === null) {
-        const partidoId = await crearPartidoVirtual({
-          canchaId: cancha.id,
-          fecha: selectedTurno.fecha,
-          horaInicio,
-          horaFin,
-          precioTotal: selectedTurno.precio_total,
-          precioSena: selectedTurno.precio_sena,
-          cupoMinimo: min,
-          cupoMaximo: max,
-          invitados: Number(invitados),
-          nivel: nivelPartido,
-          requiereAprobacion: requiereAprobacion,
-          visibilidad: 'publico',
-        });
-        toast.success(`Partido creado. ID: ${partidoId}`);
-      } else {
-        const turnoIdReservado = await reservarTurnoRango({
-          canchaId: cancha.id,
-          fecha: selectedTurno.fecha,
-          horaInicio,
-          horaFin,
-          estadoFinal: 'disponible',
-        });
-
-        const { data, error: rpcError } = await supabase.rpc('crear_partido', {
-          p_turno_id: turnoIdReservado,
-          p_cupo_minimo: min,
-          p_cupo_maximo: max,
-          p_invitados: Number(invitados),
-          p_nivel: nivelPartido,
-          p_requiere_aprobacion: requiereAprobacion,
-          p_visibilidad: 'publico',
-        });
-
-        if (rpcError) throw new Error(rpcError.message);
-
-        toast.success(`Partido creado. ID: ${data}`);
-      }
+      const result = await solicitarPartido(cancha.id, selectedTurno, horaInicio, horaFin,
+        min, max, Number(invitados), nivelPartido, requiereAprobacion);
+      toast.success(result.pending ? 'Solicitud enviada. El partido se publicará cuando el club confirme la cancha.' : 'Partido creado.');
       await refreshTurnos();
       setSelectedTurno(null);
       setShowForm(false);
+      setResumeIntent(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'No se pudo crear el partido.');
     } finally {
@@ -289,6 +265,7 @@ export function CanchaDetailPage() {
             <CalendarDays size={20} />
             Horarios disponibles
           </h2>
+          {!pilotBookingsEnabled && <p role="status" className="mb-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">Las nuevas solicitudes están pausadas durante la preparación del piloto.</p>}
 
           {loadingTurnos ? (
             <div className="grid gap-2">
@@ -317,40 +294,19 @@ export function CanchaDetailPage() {
               Seleccionado: {formatDate(selectedTurno.fecha)} ({formatTime(selectedTurno.hora_inicio)} – {formatTime(selectedTurno.hora_fin)})
             </p>
 
-            <div className="mt-3 flex flex-wrap items-center gap-4">
-              <label className="text-sm text-ink/70">
-                Desde:
-                <input
-                  className="ml-2 rounded-md border border-ink/20 px-2 py-1 focus:border-court focus:outline-none"
-                  max={selectedTurno.hora_fin.slice(0, 5)}
-                  min={selectedTurno.hora_inicio.slice(0, 5)}
-                  type="time"
-                  value={horaInicio}
-                  onChange={(e) => setHoraInicioCustom(e.target.value)}
-                />
-              </label>
-              <label className="text-sm text-ink/70">
-                Hasta:
-                <input
-                  className="ml-2 rounded-md border border-ink/20 px-2 py-1 focus:border-court focus:outline-none"
-                  max={selectedTurno.hora_fin.slice(0, 5)}
-                  min={selectedTurno.hora_inicio.slice(0, 5)}
-                  type="time"
-                  value={horaFin}
-                  onChange={(e) => setHoraFinCustom(e.target.value)}
-                />
-              </label>
-            </div>
+            <p className="mt-2 text-sm text-ink/70">
+              Horario publicado: {horaInicio}–{horaFin}
+            </p>
 
             <div className="mt-4 flex flex-col gap-3">
-              <Button onClick={handleReservar} loading={submitting} fullWidth>
+              <Button onClick={handleReservar} loading={submitting} disabled={!pilotBookingsEnabled} fullWidth>
                 <Clock3 size={16} />
-                Alquilar cancha
+                {resumeIntent === 'reservar' ? 'Confirmar solicitud' : 'Alquilar cancha'}
               </Button>
 
-              <Button variant="secondary" onClick={() => setShowForm(!showForm)} fullWidth>
+              <Button variant="secondary" disabled={!pilotBookingsEnabled} onClick={() => setShowForm(!showForm)} fullWidth>
                 <Volleyball size={16} />
-                Organizar partido
+                {resumeIntent === 'organizar' ? 'Continuar organización' : 'Organizar partido'}
               </Button>
             </div>
 

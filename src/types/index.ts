@@ -31,6 +31,8 @@ export type PartidoPublico = {
   id: number;
   organizador_id: string;
   estado_partido: string;
+  estado_cancha?: 'pendiente' | 'confirmada' | 'rechazada' | 'vencida' | 'cancelada';
+  estado_grupo?: 'faltan_jugadores' | 'grupo_completo' | 'cancelado';
   cupo_minimo: number;
   cupo_maximo: number;
   cantidad_invitados_anonimos: number;

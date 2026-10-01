@@ -27,7 +27,7 @@ export function AdminPage() {
   return (
     <main className="app-shell min-h-screen px-4 py-5">
       <div className="mx-auto max-w-6xl">
-        <AdminDashboard onBack={() => navigate('/')} />
+        <AdminDashboard onBack={() => navigate('/app')} />
       </div>
     </main>
   );

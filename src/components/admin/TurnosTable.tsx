@@ -1,17 +1,13 @@
 import { useState } from 'react';
-import { Trash2, CalendarDays, Clock3, Filter } from 'lucide-react';
-import { toast } from 'sonner';
-import { adminEliminarTurno } from '@/lib/admin';
+import { CalendarDays, Clock3, Filter } from 'lucide-react';
 import { formatDate } from '@/lib/format';
 import type { TurnoAdmin } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { ConfirmDialog } from './ConfirmDialog';
 
 type TurnosTableProps = {
   turnos: TurnoAdmin[];
   loading: boolean;
-  onRefresh: () => void;
 };
 
 const estadoColors: Record<string, string> = {
@@ -21,29 +17,12 @@ const estadoColors: Record<string, string> = {
   bloqueado_club: 'bg-ink/10 text-ink/50',
 };
 
-export function TurnosTable({ turnos, loading, onRefresh }: TurnosTableProps) {
-  const [eliminando, setEliminando] = useState<TurnoAdmin | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+export function TurnosTable({ turnos, loading }: TurnosTableProps) {
   const [filtroFecha, setFiltroFecha] = useState('');
 
   const filtered = filtroFecha
     ? turnos.filter((t) => t.fecha === filtroFecha)
     : turnos;
-
-  async function handleDelete() {
-    if (!eliminando) return;
-    setSubmitting(true);
-    try {
-      await adminEliminarTurno(eliminando.id);
-      toast.success('Turno eliminado');
-      setEliminando(null);
-      onRefresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al eliminar');
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   if (loading) {
     return <div className="text-center py-8 text-ink/50">Cargando turnos...</div>;
@@ -90,22 +69,11 @@ export function TurnosTable({ turnos, loading, onRefresh }: TurnosTableProps) {
                   {turno.hora_inicio.slice(0, 5)}–{turno.hora_fin.slice(0, 5)}
                 </span>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => setEliminando(turno)}>
-                <Trash2 size={14} className="text-vb-red" />
-              </Button>
             </div>
           </Card>
         ))}
       </div>
 
-      <ConfirmDialog
-        open={eliminando !== null}
-        title="Eliminar turno"
-        message={`¿Seguro que querés eliminar el turno del ${eliminando ? formatDate(eliminando.fecha) : ''} ${eliminando?.hora_inicio.slice(0, 5)}–${eliminando?.hora_fin.slice(0, 5)}? No se puede eliminar si está reservado.`}
-        loading={submitting}
-        onConfirm={handleDelete}
-        onCancel={() => setEliminando(null)}
-      />
     </>
   );
 }

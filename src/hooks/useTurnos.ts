@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { obtenerTurnosDisponibles } from '@/lib/booking';
+import { addDaysToISODate } from '@/lib/date';
 import type { TurnoVirtual } from '@/types';
 
 const SEMANAS_ADELANTE = 5;
@@ -13,10 +14,7 @@ export function useTurnos(canchaId: number | null, desdeFecha: string) {
   const refresh = useCallback(() => setVersion((v) => v + 1), []);
 
   const hastaFecha = useMemo(() => {
-    const desde = new Date(`${desdeFecha}T12:00:00`);
-    const hasta = new Date(desde);
-    hasta.setDate(hasta.getDate() + SEMANAS_ADELANTE * 7);
-    return hasta.toISOString().slice(0, 10);
+    return addDaysToISODate(desdeFecha, SEMANAS_ADELANTE * 7);
   }, [desdeFecha]);
 
   useEffect(() => {

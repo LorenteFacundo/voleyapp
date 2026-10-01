@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { usePartidos } from '@/hooks/usePartidos';
@@ -22,7 +22,22 @@ export function HomePage() {
   const navigate = useNavigate();
   const isAuthenticated = session != null;
 
-  const { partidos, loading: loadingPartidos, refresh: refreshPartidos } = usePartidos(isAuthenticated);
+  const { partidos, loading: loadingPartidos, refresh: refreshPartidos } = usePartidos();
+  const [search, setSearch] = useState('');
+  const [quickFilter, setQuickFilter] = useState<string | null>(null);
+  const visiblePartidos = useMemo(() => partidos.filter((partido) => {
+    const term = search.toLocaleLowerCase('es-AR').trim();
+    if (term && ![partido.club_nombre, partido.cancha_nombre, partido.direccion ?? ''].some((value) => value.toLocaleLowerCase('es-AR').includes(term))) return false;
+    const date = new Date(`${partido.fecha}T12:00:00`);
+    const today = new Date();
+    if (quickFilter === 'Hoy' && date.toDateString() !== today.toDateString()) return false;
+    if (quickFilter === 'Este finde' && ![0, 6].includes(date.getDay())) return false;
+    if (quickFilter === 'Mi nivel' && perfil?.nivel_voley != null) {
+      const level = perfil.nivel_voley < 3 ? 'recreativo' : perfil.nivel_voley < 6 ? 'intermedio' : 'competitivo';
+      if (partido.nivel_requerido !== level) return false;
+    }
+    return true;
+  }), [partidos, search, quickFilter, perfil?.nivel_voley]);
   const { clubes, refresh: refreshClubes } = useClubes();
 
   const [bookingOpen, setBookingOpen] = useState(false);
@@ -46,14 +61,14 @@ export function HomePage() {
   return (
     <div className="app-shell pb-20 md:pb-0">
       <Header onOpenBooking={() => openBooking()} onRefresh={refresh} />
-      <HeroSection />
+      <HeroSection onSearch={setSearch} onQuickFilter={setQuickFilter} />
 
       <main className="mx-auto max-w-7xl px-4 py-6">
         <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
           {/* Main content */}
           <div className="grid gap-6">
             <ExpandableMap clubes={clubes} onSelectClub={(id) => openBooking(id)} />
-            <MatchList partidos={partidos} loading={loadingPartidos} isAuthenticated={isAuthenticated} />
+            <MatchList partidos={visiblePartidos} loading={loadingPartidos} isAuthenticated={isAuthenticated} />
           </div>
 
           {/* Sidebar (desktop) */}

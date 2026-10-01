@@ -1,18 +1,12 @@
-import { useState } from 'react';
-import { XCircle, CalendarDays, Clock3, User, CreditCard } from 'lucide-react';
-import { toast } from 'sonner';
-import { adminCancelarReserva } from '@/lib/admin';
+import { CalendarDays, Clock3, User, CreditCard } from 'lucide-react';
 import { formatDate, formatMoney } from '@/lib/format';
 import type { ReservaAdmin } from '@/types';
-import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { ConfirmDialog } from './ConfirmDialog';
 
 type ReservasTableProps = {
   reservas: ReservaAdmin[];
   loading: boolean;
-  onRefresh: () => void;
 };
 
 const estadoPagoColors: Record<string, string> = {
@@ -21,25 +15,7 @@ const estadoPagoColors: Record<string, string> = {
   cancelado: 'danger',
 };
 
-export function ReservasTable({ reservas, loading, onRefresh }: ReservasTableProps) {
-  const [cancelando, setCancelando] = useState<ReservaAdmin | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  async function handleCancel() {
-    if (!cancelando) return;
-    setSubmitting(true);
-    try {
-      await adminCancelarReserva(cancelando.id);
-      toast.success('Reserva cancelada');
-      setCancelando(null);
-      onRefresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al cancelar');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
+export function ReservasTable({ reservas, loading }: ReservasTableProps) {
   if (loading) {
     return <div className="text-center py-8 text-ink/50">Cargando reservas...</div>;
   }
@@ -79,23 +55,11 @@ export function ReservasTable({ reservas, loading, onRefresh }: ReservasTablePro
                   </span>
                 </div>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => setCancelando(reserva)}>
-                <XCircle size={14} className="text-vb-red" />
-              </Button>
             </div>
           </Card>
         ))}
       </div>
 
-      <ConfirmDialog
-        open={cancelando !== null}
-        title="Cancelar reserva"
-        message={`¿Seguro que querés cancelar la reserva de ${cancelando?.usuario_nombre} en ${cancelando?.cancha_titulo}? El turno volverá a estar disponible.`}
-        confirmLabel="Cancelar reserva"
-        loading={submitting}
-        onConfirm={handleCancel}
-        onCancel={() => setCancelando(null)}
-      />
     </>
   );
 }

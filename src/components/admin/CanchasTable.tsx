@@ -1,12 +1,10 @@
 import { useState } from 'react';
-import { Pencil, Trash2, Volleyball, Plus, Save } from 'lucide-react';
+import { Pencil, Volleyball, Plus, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   adminActualizarCancha,
-  adminEliminarCancha,
   adminListarHorariosSemanales,
   adminGuardarHorariosSemanales,
-  adminEliminarHorarioSemanal,
 } from '@/lib/admin';
 import { formatMoney, formatTime } from '@/lib/format';
 import type { CanchaAdmin, HorarioSemanal } from '@/types';
@@ -15,7 +13,6 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
-import { ConfirmDialog } from './ConfirmDialog';
 
 type CanchasTableProps = {
   canchas: CanchaAdmin[];
@@ -35,7 +32,6 @@ const DIAS = [1, 2, 3, 4, 5, 6, 0]; // Lun a Dom
 
 export function CanchasTable({ canchas, loading, onRefresh }: CanchasTableProps) {
   const [editando, setEditando] = useState<CanchaAdmin | null>(null);
-  const [eliminando, setEliminando] = useState<CanchaAdmin | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const [titulo, setTitulo] = useState('');
@@ -47,7 +43,6 @@ export function CanchasTable({ canchas, loading, onRefresh }: CanchasTableProps)
   const [horarios, setHorarios] = useState<HorarioDraft[]>([]);
   const [horariosLoading, setHorariosLoading] = useState(false);
   const [editandoHorario, setEditandoHorario] = useState<number | null>(null);
-  const [eliminandoHorario, setEliminandoHorario] = useState<number | null>(null);
 
   // Form para nuevo horario
   const [nuevoDia, setNuevoDia] = useState(1);
@@ -101,21 +96,6 @@ export function CanchasTable({ canchas, loading, onRefresh }: CanchasTableProps)
       onRefresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al actualizar');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleDelete() {
-    if (!eliminando) return;
-    setSubmitting(true);
-    try {
-      await adminEliminarCancha(eliminando.id);
-      toast.success('Cancha eliminada');
-      setEliminando(null);
-      onRefresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al eliminar');
     } finally {
       setSubmitting(false);
     }
@@ -194,9 +174,6 @@ export function CanchasTable({ canchas, loading, onRefresh }: CanchasTableProps)
               <div className="flex gap-1">
                 <Button variant="ghost" size="sm" onClick={() => startEdit(cancha)}>
                   <Pencil size={14} />
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setEliminando(cancha)}>
-                  <Trash2 size={14} className="text-vb-red" />
                 </Button>
               </div>
             </div>
@@ -343,14 +320,6 @@ export function CanchasTable({ canchas, loading, onRefresh }: CanchasTableProps)
         </div>
       )}
 
-      <ConfirmDialog
-        open={eliminando !== null}
-        title="Eliminar cancha"
-        message={`¿Seguro que querés eliminar "${eliminando?.titulo}"? Se eliminarán también sus horarios.`}
-        loading={submitting}
-        onConfirm={handleDelete}
-        onCancel={() => setEliminando(null)}
-      />
     </>
   );
 }

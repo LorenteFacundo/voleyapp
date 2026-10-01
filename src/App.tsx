@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -6,29 +6,45 @@ import { useAuth } from '@/hooks/useAuth';
 import { isAdminGlobal } from '@/lib/roles';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { buscarPartidoPorToken } from '@/lib/booking';
-import { HomePage } from '@/pages/HomePage';
-import { PartidosPage } from '@/pages/PartidosPage';
-import { CanchasPage } from '@/pages/CanchasPage';
-import { PerfilPage } from '@/pages/PerfilPage';
+import { LandingPage } from '@/pages/LandingPage';
+import { NotFoundPage } from '@/pages/NotFoundPage';
+import { pilotBookingsEnabled } from '@/lib/pilot';
 
+const HomePage = lazy(() => import('@/pages/HomePage').then((m) => ({ default: m.HomePage })));
+const PartidosPage = lazy(() => import('@/pages/PartidosPage').then((m) => ({ default: m.PartidosPage })));
+const CanchasPage = lazy(() => import('@/pages/CanchasPage').then((m) => ({ default: m.CanchasPage })));
+const PerfilPage = lazy(() => import('@/pages/PerfilPage').then((m) => ({ default: m.PerfilPage })));
+const MisReservasPage = lazy(() => import('@/pages/MisReservasPage').then((m) => ({ default: m.MisReservasPage })));
 const AdminPage = lazy(() => import('@/pages/AdminPage').then((m) => ({ default: m.AdminPage })));
 const MatchDetailPage = lazy(() => import('@/pages/MatchDetailPage').then((m) => ({ default: m.MatchDetailPage })));
 const CanchaDetailPage = lazy(() => import('@/pages/CanchaDetailPage').then((m) => ({ default: m.CanchaDetailPage })));
+const ClubAgendaPage = lazy(() => import('@/pages/ClubAgendaPage').then((m) => ({ default: m.ClubAgendaPage })));
 
 function InviteRedirect() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
+  const [expired, setExpired] = useState(false);
 
   useEffect(() => {
-    if (!token) { navigate('/'); return; }
+    if (!token) { navigate('/app'); return; }
     buscarPartidoPorToken(token).then((partidoId) => {
       if (partidoId) {
-        navigate(`/partido/${partidoId}`, { replace: true });
+        navigate(`/partido/${partidoId}?invite=${encodeURIComponent(token)}`, { replace: true });
       } else {
-        navigate('/', { replace: true });
+        setExpired(true);
       }
     });
   }, [token, navigate]);
+
+  if (expired) return (
+    <div className="grid min-h-screen place-items-center bg-line px-5 py-12 text-center">
+      <div className="max-w-md rounded-2xl bg-white p-8 shadow-soft">
+        <h1 className="font-display text-2xl font-black text-ink">Este enlace no está disponible</h1>
+        <p className="mt-3 text-sm leading-relaxed text-ink/60">Puede haber vencido o el partido ya no aceptar invitaciones. Pedile a quien te lo compartió un enlace actualizado.</p>
+        <button onClick={() => navigate('/app', { replace: true })} className="mt-6 rounded-full bg-vb-blue px-5 py-3 text-sm font-bold text-white">Explorar partidos</button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="flex min-h-screen items-center justify-center">
@@ -37,7 +53,11 @@ function InviteRedirect() {
   );
 }
 
-function AdminGuard() {
+function RouteFallback() {
+  return <div className="flex min-h-screen items-center justify-center"><div className="animate-pulse text-ink/50">Cargando...</div></div>;
+}
+
+function AdminGuard({ agenda = false }: { agenda?: boolean }) {
   const { session, perfil, loading } = useAuth();
 
   if (loading) {
@@ -52,16 +72,20 @@ function AdminGuard() {
   }
 
   if (!session) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
 
-  if (!isAdminGlobal(perfil?.rol)) {
-    return <Navigate to="/" replace />;
+  if (!isAdminGlobal(perfil?.rol) && perfil?.rol !== 'admin_cancha') {
+    return <Navigate to="/app" replace />;
+  }
+
+  if (perfil?.rol === 'admin_cancha' && !pilotBookingsEnabled) {
+    return <Navigate to="/app" replace />;
   }
 
   return (
     <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="animate-pulse text-ink/50">Cargando...</div></div>}>
-      <AdminPage />
+      {pilotBookingsEnabled && (agenda || perfil?.rol === 'admin_cancha') ? <ClubAgendaPage /> : <AdminPage />}
     </Suspense>
   );
 }
@@ -72,11 +96,14 @@ export function App() {
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/partidos" element={<PartidosPage />} />
-            <Route path="/canchas" element={<CanchasPage />} />
-            <Route path="/perfil" element={<PerfilPage />} />
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/app" element={<Suspense fallback={<RouteFallback />}><HomePage /></Suspense>} />
+            <Route path="/partidos" element={<Suspense fallback={<RouteFallback />}><PartidosPage /></Suspense>} />
+            <Route path="/canchas" element={<Suspense fallback={<RouteFallback />}><CanchasPage /></Suspense>} />
+            <Route path="/perfil" element={<Suspense fallback={<RouteFallback />}><PerfilPage /></Suspense>} />
+            <Route path="/mis-reservas" element={<Suspense fallback={<RouteFallback />}><MisReservasPage /></Suspense>} />
             <Route path="/admin" element={<AdminGuard />} />
+            <Route path="/agenda" element={<AdminGuard agenda />} />
             <Route
               path="/partido/:id"
               element={
@@ -94,6 +121,7 @@ export function App() {
               }
             />
             <Route path="/partido/invitar/:token" element={<InviteRedirect />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
           <Toaster position="bottom-right" richColors closeButton />
         </BrowserRouter>

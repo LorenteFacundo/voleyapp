@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { PartidoDetalle } from '@/types';
+import { pilotBookingsEnabled } from '@/lib/pilot';
 
-export function usePartidoDetalle(partidoId: number | null) {
+export function usePartidoDetalle(partidoId: number | null, inviteToken: string | null = null) {
   const [partido, setPartido] = useState<PartidoDetalle | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +21,14 @@ export function usePartidoDetalle(partidoId: number | null) {
     setLoading(true);
     setError(null);
 
-    supabase
+    if (pilotBookingsEnabled) {
+      supabase.rpc('pilot_partido_detalle', { p_id: partidoId, p_token: inviteToken }).then(({ data, error: fetchError }) => {
+        if (cancelled) return;
+        if (fetchError) { setError(fetchError.message); setPartido(null); }
+        else setPartido(data as PartidoDetalle | null);
+        setLoading(false);
+      });
+    } else supabase
       .from('partido_detalle')
       .select('*')
       .eq('id', partidoId)
@@ -39,7 +47,7 @@ export function usePartidoDetalle(partidoId: number | null) {
     return () => {
       cancelled = true;
     };
-  }, [partidoId, version]);
+  }, [partidoId, inviteToken, version]);
 
   return { partido, loading, error, refresh };
 }

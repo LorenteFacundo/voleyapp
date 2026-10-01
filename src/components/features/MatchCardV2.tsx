@@ -9,6 +9,8 @@ export function MatchCardV2({ partido }: { partido: PartidoPublico }) {
   const navigate = useNavigate();
   const yaInscripto = partido.mi_estado_inscripcion != null;
   const estaLleno = partido.jugadores_confirmados >= partido.cupo_maximo;
+  const estadoCancha = partido.estado_cancha ?? (partido.estado_partido === 'pre_reservado' ? 'pendiente' : 'confirmada');
+  const estadoGrupo = partido.estado_grupo ?? (estaLleno ? 'grupo_completo' : 'faltan_jugadores');
   const progress = Math.min(100, (partido.jugadores_confirmados / partido.cupo_maximo) * 100);
 
   return (
@@ -65,6 +67,15 @@ export function MatchCardV2({ partido }: { partido: PartidoPublico }) {
         </span>
         <span className="font-bold text-vb-blue text-lg">
           {formatMoney(partido.precio_total)}
+        </span>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+        <span className={`rounded-full px-2.5 py-1 ${estadoCancha === 'pendiente' ? 'bg-amber-100 text-amber-900' : 'bg-green-100 text-green-800'}`}>
+          {estadoCancha === 'pendiente' ? 'Cancha pendiente' : 'Cancha confirmada'}
+        </span>
+        <span className="rounded-full bg-vb-blue/5 px-2.5 py-1 text-vb-blue">
+          {estadoGrupo === 'grupo_completo' ? 'Grupo completo' : 'Faltan jugadores'}
         </span>
       </div>
 

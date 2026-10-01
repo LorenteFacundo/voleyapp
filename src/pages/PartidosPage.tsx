@@ -33,7 +33,7 @@ export function PartidosPage() {
       <div className="app-shell pb-20 md:pb-0">
         <header className="sticky top-0 z-30 border-b border-vb-gray/10 bg-white/80 backdrop-blur-md">
           <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/app')}>
               <ArrowLeft size={18} />
             </Button>
             <h1 className="text-lg font-bold text-vb-blue">Partidos</h1>
@@ -62,7 +62,7 @@ export function PartidosPage() {
     <div className="app-shell pb-20 md:pb-0">
       <header className="sticky top-0 z-30 border-b border-vb-gray/10 bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
+          <Button variant="ghost" size="sm" onClick={() => navigate('/app')}>
             <ArrowLeft size={18} />
           </Button>
           <h1 className="text-lg font-bold text-vb-blue">Mis Partidos</h1>
@@ -93,7 +93,7 @@ export function PartidosPage() {
             <p className="max-w-sm text-vb-gray/65">
               Cuando creés un partido o te inscribas a uno, va a aparecer acá.
             </p>
-            <Button onClick={() => navigate('/')}>Explorar partidos</Button>
+            <Button onClick={() => navigate('/app')}>Explorar partidos</Button>
           </div>
         ) : (
           <div className="grid gap-8">

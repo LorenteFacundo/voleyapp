@@ -8,6 +8,7 @@ import { Tabs } from '@/components/ui/Tabs';
 import { crearCanchaConTurnos, uploadCanchaPhotos } from '@/lib/admin';
 import type { TurnoInput } from '@/lib/admin';
 import { formatDate } from '@/lib/format';
+import { addDaysToISODate, todayArgentinaISO } from '@/lib/date';
 import { supabase } from '@/lib/supabase';
 import type { ClubPublico } from '@/types';
 
@@ -26,7 +27,7 @@ const CLUB_TABS = [
 ];
 
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return todayArgentinaISO();
 }
 
 function emptySlot(): SlotDraft {
@@ -35,13 +36,10 @@ function emptySlot(): SlotDraft {
 
 function buildWeekSlots(startDate: string, horaInicio: string, horaFin: string, days: number): SlotDraft[] {
   const slots: SlotDraft[] = [];
-  const base = new Date(`${startDate}T12:00:00`);
   for (let i = 0; i < days; i++) {
-    const d = new Date(base);
-    d.setDate(d.getDate() + i);
     slots.push({
       key: crypto.randomUUID(),
-      fecha: d.toISOString().slice(0, 10),
+      fecha: addDaysToISODate(startDate, i),
       hora_inicio: horaInicio,
       hora_fin: horaFin,
     });

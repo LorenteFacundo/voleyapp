@@ -1,9 +1,10 @@
-import { LogOut, Settings2, Volleyball, Plus } from 'lucide-react';
+import { LogOut, Settings2, Volleyball, Plus, CalendarDays } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { isAdminGlobal } from '@/lib/roles';
 import { Button } from '@/components/ui/Button';
 import { NotificationBell } from '@/components/features/NotificationBell';
+import { pilotBookingsEnabled } from '@/lib/pilot';
 
 type HeaderProps = {
   onOpenBooking: () => void;
@@ -13,7 +14,7 @@ type HeaderProps = {
 export function Header({ onOpenBooking, onRefresh }: HeaderProps) {
   const { session, signOut, perfil } = useAuth();
   const navigate = useNavigate();
-  const canManageCatalog = isAdminGlobal(perfil?.rol);
+  const canManageCatalog = isAdminGlobal(perfil?.rol) || perfil?.rol === 'admin_cancha';
 
   return (
     <header className="sticky top-0 z-30 border-b border-vb-gray/10 bg-white/80 backdrop-blur-md">
@@ -41,6 +42,7 @@ export function Header({ onOpenBooking, onRefresh }: HeaderProps) {
               Admin
             </Button>
           ) : null}
+          {canManageCatalog && pilotBookingsEnabled && <Button variant="secondary" size="sm" onClick={() => navigate('/agenda')}><CalendarDays size={16} /> Agenda</Button>}
           <Button variant="secondary" size="sm" onClick={onRefresh}>
             Actualizar
           </Button>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { UserCog, Mail, Volleyball } from 'lucide-react';
 import { toast } from 'sonner';
 import { adminActualizarRol } from '@/lib/admin';
+import { useAuth } from '@/hooks/useAuth';
 import type { UsuarioAdmin } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -36,13 +37,26 @@ const nivelLabels: Record<number, string> = {
 };
 
 export function UsuariosTable({ usuarios, loading, onRefresh }: UsuariosTableProps) {
+  const { session, perfil } = useAuth();
   const [cambiandoRol, setCambiandoRol] = useState<UsuarioAdmin | null>(null);
   const [nuevoRol, setNuevoRol] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const esSuperadmin = perfil?.rol === 'superadmin';
+  const rolesDisponibles = esSuperadmin ? ROLES : ROLES.filter((rol) => rol !== 'superadmin');
+
+  function puedeEditarRol(usuario: UsuarioAdmin) {
+    return Boolean(
+      perfil &&
+      (perfil.rol === 'admin_global' || esSuperadmin) &&
+      usuario.id !== session?.user.id &&
+      (esSuperadmin || usuario.rol !== 'superadmin'),
+    );
+  }
 
   function startChangeRole(usuario: UsuarioAdmin) {
+    if (!puedeEditarRol(usuario)) return;
     setCambiandoRol(usuario);
-    setNuevoRol(usuario.rol);
+    setNuevoRol(rolesDisponibles.includes(usuario.rol) ? usuario.rol : 'jugador');
   }
 
   async function handleSaveRol() {
@@ -92,9 +106,11 @@ export function UsuariosTable({ usuarios, loading, onRefresh }: UsuariosTablePro
                   )}
                 </div>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => startChangeRole(usuario)}>
-                <UserCog size={14} />
-              </Button>
+              {puedeEditarRol(usuario) && (
+                <Button variant="ghost" size="sm" onClick={() => startChangeRole(usuario)}>
+                  <UserCog size={14} />
+                </Button>
+              )}
             </div>
           </Card>
         ))}
@@ -114,7 +130,7 @@ export function UsuariosTable({ usuarios, loading, onRefresh }: UsuariosTablePro
                   value={nuevoRol}
                   onChange={(e) => setNuevoRol(e.target.value)}
                 >
-                  {ROLES.map((r) => (
+                  {rolesDisponibles.map((r) => (
                     <option key={r} value={r}>{r}</option>
                   ))}
                 </select>

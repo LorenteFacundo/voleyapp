@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Building2, Volleyball, CalendarClock, CreditCard, Trophy, Users } from 'lucide-react';
+import { ArrowLeft, Building2, Volleyball, CalendarClock, CreditCard, Trophy, Users, Mail, UserRoundCog, ShieldCheck } from 'lucide-react';
+import { ClubLeads } from './ClubLeads';
+import { ClubManagers } from './ClubManagers';
+import { PilotAccess } from './PilotAccess';
+import { pilotBookingsEnabled } from '@/lib/pilot';
 import {
   adminListarClubes,
   adminListarCanchas,
@@ -17,7 +21,7 @@ import { ReservasTable } from './ReservasTable';
 import { PartidosTable } from './PartidosTable';
 import { UsuariosTable } from './UsuariosTable';
 
-type Tab = 'clubes' | 'canchas' | 'turnos' | 'reservas' | 'partidos' | 'usuarios';
+type Tab = 'clubes' | 'canchas' | 'turnos' | 'reservas' | 'partidos' | 'usuarios' | 'interesados' | 'administradores' | 'accesos';
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'clubes', label: 'Clubes', icon: <Building2 size={16} /> },
@@ -26,6 +30,9 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'reservas', label: 'Reservas', icon: <CreditCard size={16} /> },
   { id: 'partidos', label: 'Partidos', icon: <Trophy size={16} /> },
   { id: 'usuarios', label: 'Usuarios', icon: <Users size={16} /> },
+  ...(pilotBookingsEnabled ? [{ id: 'administradores' as const, label: 'Acceso a clubes', icon: <UserRoundCog size={16} /> }] : []),
+  ...(pilotBookingsEnabled ? [{ id: 'accesos' as const, label: 'Acceso al piloto', icon: <ShieldCheck size={16} /> }] : []),
+  ...(import.meta.env.VITE_CLUB_LEADS_ENABLED === 'true' ? [{ id: 'interesados' as const, label: 'Interesados', icon: <Mail size={16} /> }] : []),
 ];
 
 type AdminDashboardProps = {
@@ -110,10 +117,13 @@ export function AdminDashboard({ onBack }: AdminDashboardProps) {
       <div>
         {tab === 'clubes' && <ClubesTable clubes={clubes} loading={loading} onRefresh={fetchData} />}
         {tab === 'canchas' && <CanchasTable canchas={canchas} loading={loading} onRefresh={fetchData} />}
-        {tab === 'turnos' && <TurnosTable turnos={turnos} loading={loading} onRefresh={fetchData} />}
-        {tab === 'reservas' && <ReservasTable reservas={reservas} loading={loading} onRefresh={fetchData} />}
+        {tab === 'turnos' && <TurnosTable turnos={turnos} loading={loading} />}
+        {tab === 'reservas' && <ReservasTable reservas={reservas} loading={loading} />}
         {tab === 'partidos' && <PartidosTable partidos={partidos} loading={loading} onRefresh={fetchData} />}
         {tab === 'usuarios' && <UsuariosTable usuarios={usuarios} loading={loading} onRefresh={fetchData} />}
+        {tab === 'interesados' && <ClubLeads />}
+        {tab === 'administradores' && <ClubManagers />}
+        {tab === 'accesos' && <PilotAccess />}
       </div>
     </div>
   );

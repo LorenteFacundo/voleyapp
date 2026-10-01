@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { Pencil, Trash2, MapPin, Phone } from 'lucide-react';
+import { Pencil, MapPin, Phone } from 'lucide-react';
 import { toast } from 'sonner';
-import { adminActualizarClub, adminEliminarClub } from '@/lib/admin';
+import { adminActualizarClub } from '@/lib/admin';
 import type { ClubAdmin } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
-import { ConfirmDialog } from './ConfirmDialog';
 
 type ClubesTableProps = {
   clubes: ClubAdmin[];
@@ -16,7 +15,6 @@ type ClubesTableProps = {
 
 export function ClubesTable({ clubes, loading, onRefresh }: ClubesTableProps) {
   const [editando, setEditando] = useState<ClubAdmin | null>(null);
-  const [eliminando, setEliminando] = useState<ClubAdmin | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Edit form state
@@ -57,21 +55,6 @@ export function ClubesTable({ clubes, loading, onRefresh }: ClubesTableProps) {
     }
   }
 
-  async function handleDelete() {
-    if (!eliminando) return;
-    setSubmitting(true);
-    try {
-      await adminEliminarClub(eliminando.id);
-      toast.success('Club eliminado');
-      setEliminando(null);
-      onRefresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al eliminar');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   if (loading) {
     return <div className="text-center py-8 text-ink/50">Cargando clubes...</div>;
   }
@@ -106,9 +89,6 @@ export function ClubesTable({ clubes, loading, onRefresh }: ClubesTableProps) {
                 <Button variant="ghost" size="sm" onClick={() => startEdit(club)}>
                   <Pencil size={14} />
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => setEliminando(club)}>
-                  <Trash2 size={14} className="text-vb-red" />
-                </Button>
               </div>
             </div>
           </Card>
@@ -137,14 +117,6 @@ export function ClubesTable({ clubes, loading, onRefresh }: ClubesTableProps) {
         </div>
       )}
 
-      <ConfirmDialog
-        open={eliminando !== null}
-        title="Eliminar club"
-        message={`¿Seguro que querés eliminar "${eliminando?.nombre}"? No se puede eliminar si tiene canchas asociadas.`}
-        loading={submitting}
-        onConfirm={handleDelete}
-        onCancel={() => setEliminando(null)}
-      />
     </>
   );
 }

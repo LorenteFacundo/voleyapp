@@ -180,11 +180,6 @@ export async function adminActualizarClub(params: {
   if (error) throw new Error(error.message);
 }
 
-export async function adminEliminarClub(clubId: number) {
-  const { error } = await supabase.rpc('admin_eliminar_club', { p_club_id: clubId });
-  if (error) throw new Error(error.message);
-}
-
 // Canchas
 export async function adminListarCanchas(): Promise<CanchaAdmin[]> {
   const { data, error } = await supabase.rpc('admin_listar_canchas');
@@ -204,11 +199,6 @@ export async function adminActualizarCancha(params: {
   if (error) throw new Error(error.message);
 }
 
-export async function adminEliminarCancha(canchaId: number) {
-  const { error } = await supabase.rpc('admin_eliminar_cancha', { p_cancha_id: canchaId });
-  if (error) throw new Error(error.message);
-}
-
 // Turnos
 export async function adminListarTurnos(filters?: {
   canchaId?: number; fechaDesde?: string; fechaHasta?: string;
@@ -222,21 +212,11 @@ export async function adminListarTurnos(filters?: {
   return (data ?? []) as unknown as TurnoAdmin[];
 }
 
-export async function adminEliminarTurno(turnoId: number) {
-  const { error } = await supabase.rpc('admin_eliminar_turno', { p_turno_id: turnoId });
-  if (error) throw new Error(error.message);
-}
-
 // Reservas
 export async function adminListarReservas(): Promise<ReservaAdmin[]> {
   const { data, error } = await supabase.rpc('admin_listar_reservas');
   if (error) throw new Error(error.message);
   return (data ?? []) as unknown as ReservaAdmin[];
-}
-
-export async function adminCancelarReserva(reservaId: number) {
-  const { error } = await supabase.rpc('admin_cancelar_reserva', { p_reserva_id: reservaId });
-  if (error) throw new Error(error.message);
 }
 
 // Partidos

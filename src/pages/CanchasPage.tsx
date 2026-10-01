@@ -76,7 +76,7 @@ export function CanchasPage() {
     <div className="app-shell pb-20 md:pb-0">
       <header className="sticky top-0 z-30 border-b border-vb-gray/10 bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
+          <Button variant="ghost" size="sm" onClick={() => navigate('/app')}>
             <ArrowLeft size={18} />
           </Button>
           <h1 className="text-lg font-bold text-vb-blue">Canchas</h1>

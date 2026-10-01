@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 
 const navItems = [
-  { label: 'Inicio', icon: Home, path: '/' },
+  { label: 'Inicio', icon: Home, path: '/app' },
   { label: 'Partidos', icon: Trophy, path: '/partidos' },
   { label: 'Canchas', icon: MapPin, path: '/canchas' },
   { label: 'Perfil', icon: User, path: '/perfil' },

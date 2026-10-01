@@ -14,9 +14,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { useClubes } from '@/hooks/useClubes';
 import { useCanchas } from '@/hooks/useCanchas';
 import { useTurnos } from '@/hooks/useTurnos';
-import { reservarTurnoRango, reservarTurnoVirtual, crearPartidoVirtual } from '@/lib/admin';
-import { turnoKey, otorgarPuntos } from '@/lib/booking';
+import { turnoKey } from '@/lib/booking';
+import { solicitarReserva, solicitarPartido } from '@/lib/pilot';
 import { formatDate, formatMoney, formatTime } from '@/lib/format';
+import { todayArgentinaISO } from '@/lib/date';
 import { supabase } from '@/lib/supabase';
 import type { CanchaDetalle, ClubPublico, TurnoVirtual } from '@/types';
 import { ScheduleBoard } from '@/components/features/ScheduleBoard';
@@ -48,10 +49,7 @@ export function BookingFlow({ open, initialClubId, onClose, onRefresh }: Booking
   const [nivelPartido, setNivelPartido] = useState('recreativo');
   const [requiereAprobacion, setRequiereAprobacion] = useState(false);
 
-  const [horaInicioCustom, setHoraInicioCustom] = useState('');
-  const [horaFinCustom, setHoraFinCustom] = useState('');
-
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => todayArgentinaISO(), []);
 
   const selectedClubId = selectedClub?.id ?? null;
   const selectedCanchaId = selectedCancha?.id ?? null;
@@ -87,33 +85,12 @@ export function BookingFlow({ open, initialClubId, onClose, onRefresh }: Booking
       setSelectedClub(null);
       setSelectedCancha(null);
       setSelectedTurno(null);
-      setHoraInicioCustom('');
-      setHoraFinCustom('');
       initialClubLoadedRef.current = false;
     }
   }, [open, selectedClub]);
 
-  const horaInicio = useMemo(() => {
-    if (selectedTurno && horaInicioCustom) {
-      return horaInicioCustom;
-    }
-    return selectedTurno?.hora_inicio.slice(0, 5) ?? '';
-  }, [selectedTurno, horaInicioCustom]);
-
-  const horaFin = useMemo(() => {
-    if (selectedTurno && horaFinCustom) {
-      return horaFinCustom;
-    }
-    return selectedTurno?.hora_fin.slice(0, 5) ?? '';
-  }, [selectedTurno, horaFinCustom]);
-
-  const handleHoraInicioChange = useCallback((value: string) => {
-    setHoraInicioCustom(value);
-  }, []);
-
-  const handleHoraFinChange = useCallback((value: string) => {
-    setHoraFinCustom(value);
-  }, []);
+  const horaInicio = selectedTurno?.hora_inicio.slice(0, 5) ?? '';
+  const horaFin = selectedTurno?.hora_fin.slice(0, 5) ?? '';
 
   const selectClub = useCallback((club: ClubPublico) => {
     setSelectedClub(club);
@@ -161,24 +138,8 @@ export function BookingFlow({ open, initialClubId, onClose, onRefresh }: Booking
 
     setSubmitting(true);
     try {
-      if (selectedTurno.id === null) {
-        await reservarTurnoVirtual({
-          canchaId: selectedCancha.id,
-          fecha: selectedTurno.fecha,
-          horaInicio: horaInicio,
-          horaFin: horaFin,
-          precioTotal: selectedTurno.precio_total,
-          precioSena: selectedTurno.precio_sena,
-        });
-      } else {
-        await reservarTurnoRango({
-          canchaId: selectedCancha.id,
-          fecha: selectedTurno.fecha,
-          horaInicio: horaInicio,
-          horaFin: horaFin,
-        });
-      }
-      toast.success(`Cancha reservada: ${formatDate(selectedTurno.fecha)} ${horaInicio}–${horaFin}`);
+      const result = await solicitarReserva(selectedCancha.id, selectedTurno, horaInicio, horaFin);
+      toast.success(result.pending ? `Solicitud enviada para ${formatDate(selectedTurno.fecha)} ${horaInicio}–${horaFin}. El club debe confirmarla.` : `Cancha reservada: ${formatDate(selectedTurno.fecha)} ${horaInicio}–${horaFin}`);
       await refreshTurnos();
       onRefresh();
     } catch (error) {
@@ -224,53 +185,9 @@ export function BookingFlow({ open, initialClubId, onClose, onRefresh }: Booking
 
     setSubmitting(true);
     try {
-      if (selectedTurno.id === null) {
-        const partidoId = await crearPartidoVirtual({
-          canchaId: selectedCancha.id,
-          fecha: selectedTurno.fecha,
-          horaInicio: horaInicio,
-          horaFin: horaFin,
-          precioTotal: selectedTurno.precio_total,
-          precioSena: selectedTurno.precio_sena,
-          cupoMinimo: min,
-          cupoMaximo: max,
-          invitados: inv,
-          nivel: nivelPartido,
-          requiereAprobacion: requiereAprobacion,
-          visibilidad: 'publico',
-        });
-        toast.success(`Partido creado y publicado. ID: ${partidoId}`);
-        if (session?.user?.id) {
-          otorgarPuntos(session.user.id, 10, 'crear_partido', partidoId);
-        }
-      } else {
-        const turnoIdReservado = await reservarTurnoRango({
-          canchaId: selectedCancha.id,
-          fecha: selectedTurno.fecha,
-          horaInicio: horaInicio,
-          horaFin: horaFin,
-          estadoFinal: 'disponible',
-        });
-
-        const { data, error } = await supabase.rpc('crear_partido', {
-          p_turno_id: turnoIdReservado,
-          p_cupo_minimo: min,
-          p_cupo_maximo: max,
-          p_invitados: inv,
-          p_nivel: nivelPartido,
-          p_requiere_aprobacion: requiereAprobacion,
-          p_visibilidad: 'publico',
-        });
-
-        if (error) {
-          throw new Error(error.message);
-        }
-
-        toast.success(`Partido creado y publicado. ID: ${data}`);
-        if (session?.user?.id) {
-          otorgarPuntos(session.user.id, 10, 'crear_partido', data);
-        }
-      }
+      const result = await solicitarPartido(selectedCancha.id, selectedTurno, horaInicio, horaFin,
+        min, max, inv, nivelPartido, requiereAprobacion);
+      toast.success(result.pending ? 'Solicitud enviada. El partido se publicará cuando el club confirme la cancha.' : 'Partido creado.');
       await refreshTurnos();
       onRefresh();
     } catch (error) {
@@ -315,8 +232,6 @@ export function BookingFlow({ open, initialClubId, onClose, onRefresh }: Booking
           onSelectTurno={setSelectedTurno}
           horaInicio={horaInicio}
           horaFin={horaFin}
-          onHoraInicioChange={handleHoraInicioChange}
-          onHoraFinChange={handleHoraFinChange}
           submitting={submitting}
           onReservar={handleReservar}
           onOrganizarPartido={handleOrganizarPartido}
@@ -482,8 +397,6 @@ function StepSelectTurno({
   onSelectTurno,
   horaInicio,
   horaFin,
-  onHoraInicioChange,
-  onHoraFinChange,
   submitting,
   onReservar,
   onOrganizarPartido,
@@ -503,8 +416,6 @@ function StepSelectTurno({
   onSelectTurno: (turno: TurnoVirtual) => void;
   horaInicio: string;
   horaFin: string;
-  onHoraInicioChange: (v: string) => void;
-  onHoraFinChange: (v: string) => void;
   submitting: boolean;
   onReservar: () => void;
   onOrganizarPartido: (e: FormEvent) => void;
@@ -564,32 +475,9 @@ function StepSelectTurno({
             Seleccionado: {formatDate(selectedTurno.fecha)} (Bloque de {formatTime(selectedTurno.hora_inicio)} a {formatTime(selectedTurno.hora_fin)})
           </p>
 
-          <div className="mt-3 flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-ink/70">
-                Desde:
-                <input
-                  className="ml-2 rounded-md border border-ink/20 px-2 py-1 focus:border-court focus:outline-none"
-                  max={selectedTurno.hora_fin.slice(0, 5)}
-                  min={selectedTurno.hora_inicio.slice(0, 5)}
-                  type="time"
-                  value={horaInicio}
-                  onChange={(e) => onHoraInicioChange(e.target.value)}
-                />
-              </label>
-              <label className="text-sm text-ink/70">
-                Hasta:
-                <input
-                  className="ml-2 rounded-md border border-ink/20 px-2 py-1 focus:border-court focus:outline-none"
-                  max={selectedTurno.hora_fin.slice(0, 5)}
-                  min={selectedTurno.hora_inicio.slice(0, 5)}
-                  type="time"
-                  value={horaFin}
-                  onChange={(e) => onHoraFinChange(e.target.value)}
-                />
-              </label>
-            </div>
-          </div>
+          <p className="mt-2 text-sm text-ink/70">
+            Horario publicado: {horaInicio}–{horaFin}
+          </p>
 
           <div className="mt-4">
             <Button onClick={onReservar} loading={submitting} fullWidth>

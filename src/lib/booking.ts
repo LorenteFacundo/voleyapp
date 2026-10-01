@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { pilotBookingsEnabled } from './pilot';
 import type { CanchaDetalle, ClubPublico, Turno, TurnoVirtual, MensajePartido, BadgeCatalogo, UsuarioBadge, RankingEntry, Notificacion } from '../types';
 
 function sanitizeSearchTerm(term: string): string {
@@ -61,9 +62,12 @@ export function groupTurnosByFecha(turnos: Turno[]) {
   return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
 }
 
-export async function unirseAPartido(partidoId: number) {
-  const { data, error } = await supabase.rpc('unirse_a_partido', {
-    p_partido_id: partidoId,
+export async function unirseAPartido(partidoId: number, inviteToken: string | null = null) {
+  if (!pilotBookingsEnabled) {
+    throw new Error('Las inscripciones a nuevos partidos están pausadas por el momento.');
+  }
+  const { data, error } = await supabase.rpc('pilot_unirse_a_partido', {
+    p_partido_id: partidoId, p_token: inviteToken,
   });
 
   if (error) {
@@ -74,7 +78,7 @@ export async function unirseAPartido(partidoId: number) {
 }
 
 export async function salirseDePartido(partidoId: number): Promise<string> {
-  const { data, error } = await supabase.rpc('salirse_de_partido', {
+  const { data, error } = await supabase.rpc(pilotBookingsEnabled ? 'pilot_salir_de_partido' : 'salirse_de_partido', {
     p_partido_id: partidoId,
   });
   if (error) throw new Error(error.message);
@@ -174,16 +178,6 @@ export async function fetchRanking(limit = 20): Promise<RankingEntry[]> {
     .limit(limit);
   if (error) throw new Error(error.message);
   return (data ?? []) as unknown as RankingEntry[];
-}
-
-export async function otorgarPuntos(usuarioId: string, puntos: number, motivo: string, referenciaId?: number) {
-  const { error } = await supabase.rpc('otorgar_puntos', {
-    p_usuario_id: usuarioId,
-    p_puntos: puntos,
-    p_motivo: motivo,
-    p_referencia_id: referenciaId ?? null,
-  });
-  if (error) console.error('Error otorgando puntos:', error.message);
 }
 
 // ============ FASE 2: NOTIFICACIONES ============
