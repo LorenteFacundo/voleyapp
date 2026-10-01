@@ -1,144 +1,107 @@
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  type ReactNode,
-} from 'react';
-import type { Session } from '@supabase/supabase-js';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import type { Perfil } from '@/types';
-
-type AuthContextValue = {
-  session: Session | null;
-  perfil: Perfil | null;
-  loading: boolean;
-  refreshPerfil: () => Promise<void>;
-  signIn: (email: string, password: string) => Promise<string | null>;
-  signUp: (
-    email: string,
-    password: string,
-    nombre: string,
-    nivel: number,
-  ) => Promise<string | null>;
-  signOut: () => Promise<void>;
-};
-
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-
-async function fetchPerfil(userId: string): Promise<Perfil | null> {
-  const { data, error } = await supabase
-    .from('usuarios')
-    .select('id, nombre_completo, nivel_voley, rol, puntos_total, partidos_jugados')
-    .eq('id', userId)
-    .maybeSingle();
-
-  if (error || !data) return null;
-  return data as Perfil;
-}
+import { jugadorApi } from '@/api/jugador';
+import { claves } from '@/api/claves';
+import { AuthContext, traducirErrorAuth, type AuthContextValue } from './auth';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [session, setSession] = useState<Session | null>(null);
-  const [perfil, setPerfil] = useState<Perfil | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [sesionLista, setSesionLista] = useState(false);
+  const [recuperandoClave, setRecuperandoClave] = useState(false);
+  const usuarioActual = useRef<string | null>(null);
 
   useEffect(() => {
-    let mounted = true;
-
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      if (!mounted) return;
-      setSession(s);
-      if (s?.user) {
-        fetchPerfil(s.user.id).then((p) => {
-          if (mounted) {
-            setPerfil(p);
-            setLoading(false);
-          }
-        });
-      } else {
-        setLoading(false);
+    const aplicar = (evento: AuthChangeEvent | 'INICIAL', nueva: Session | null) => {
+      const nuevoId = nueva?.user.id ?? null;
+      // Al cambiar de cuenta se descarta todo lo cacheado de la anterior.
+      if (usuarioActual.current !== nuevoId) {
+        if (usuarioActual.current !== null) queryClient.clear();
+        usuarioActual.current = nuevoId;
       }
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, s) => {
-      if (!mounted) return;
-      setSession(s);
-      if (s?.user) {
-        fetchPerfil(s.user.id).then((p) => {
-          if (mounted) setPerfil(p);
-        });
-      } else {
-        setPerfil(null);
-      }
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
+      if (evento === 'PASSWORD_RECOVERY') setRecuperandoClave(true);
+      setSession(nueva);
+      setSesionLista(true);
     };
+
+    supabase.auth.getSession()
+      .then(({ data }) => aplicar('INICIAL', data.session))
+      .catch(() => aplicar('INICIAL', null));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((evento, nueva) => {
+      if (evento === 'INITIAL_SESSION') return;
+      aplicar(evento, nueva);
+    });
+    return () => subscription.unsubscribe();
+  }, [queryClient]);
+
+  const userId = session?.user.id;
+  const perfilQuery = useQuery({
+    queryKey: claves.perfil(userId),
+    queryFn: jugadorApi.miPerfil,
+    enabled: !!userId,
+    staleTime: 5 * 60_000,
+  });
+
+  const signIn = useCallback(async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    return error ? traducirErrorAuth(error.message) : null;
   }, []);
 
-  const signIn = useCallback(
-    async (email: string, password: string): Promise<string | null> => {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) return error.message;
-      return null;
-    },
-    [],
-  );
+  const signUp = useCallback(async (datos: { email: string; password: string; nombre: string; nivel: number; telefono?: string | null }) => {
+    const { data, error } = await supabase.auth.signUp({
+      email: datos.email.trim(),
+      password: datos.password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/app`,
+        data: { nombre_completo: datos.nombre.trim(), nivel_voley: datos.nivel, telefono: datos.telefono ?? null },
+      },
+    });
+    if (error) return { error: traducirErrorAuth(error.message), requiereConfirmacion: false };
+    return { error: null, requiereConfirmacion: !data.session };
+  }, []);
 
-  const signUp = useCallback(
-    async (
-      email: string,
-      password: string,
-      nombre: string,
-      nivel: number,
-    ): Promise<string | null> => {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { nombre_completo: nombre, nivel_voley: nivel },
-        },
-      });
-      if (error) return error.message;
-      return null;
-    },
-    [],
-  );
-
-  const signOut = useCallback(async (): Promise<void> => {
+  const signOut = useCallback(async () => {
     await supabase.auth.signOut();
+    queryClient.clear();
+  }, [queryClient]);
+
+  const enviarRecuperacion = useCallback(async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/perfil`,
+    });
+    return error ? traducirErrorAuth(error.message) : null;
   }, []);
 
-  const refreshPerfil = useCallback(async (): Promise<void> => {
-    const userId = session?.user.id;
-    if (!userId) {
-      setPerfil(null);
-      return;
-    }
-    setPerfil(await fetchPerfil(userId));
-  }, [session?.user.id]);
+  const cambiarClave = useCallback(async (password: string) => {
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) return traducirErrorAuth(error.message);
+    setRecuperandoClave(false);
+    return null;
+  }, []);
 
-  return (
-    <AuthContext.Provider
-      value={{ session, perfil, loading, refreshPerfil, signIn, signUp, signOut }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
-}
+  const refreshPerfil = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: claves.perfil(userId) });
+  }, [queryClient, userId]);
 
-export function useAuth(): AuthContextValue {
-  const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return ctx;
+  const perfil = perfilQuery.data ?? null;
+  const value = useMemo<AuthContextValue>(() => ({
+    session,
+    perfil,
+    loading: !sesionLista || (!!userId && perfilQuery.isPending),
+    recuperandoClave,
+    esAdmin: !!perfil?.es_admin,
+    esStaff: !!perfil && (perfil.es_admin || perfil.clubes.length > 0),
+    signIn,
+    signUp,
+    signOut,
+    enviarRecuperacion,
+    cambiarClave,
+    terminarRecuperacion: () => setRecuperandoClave(false),
+    refreshPerfil,
+  }), [session, perfil, sesionLista, userId, perfilQuery.isPending, recuperandoClave, signIn, signUp, signOut,
+    enviarRecuperacion, cambiarClave, refreshPerfil]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

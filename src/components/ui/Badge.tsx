@@ -2,30 +2,26 @@ import React from 'react';
 import clsx from 'clsx';
 
 type BadgeProps = {
-  variant?: 'default' | 'success' | 'warning' | 'danger' | 'court';
+  variant?: 'default' | 'success' | 'warning' | 'danger' | 'court' | 'info' | 'muted';
 } & React.HTMLAttributes<HTMLSpanElement>;
 
 const variantStyles = {
   default: 'bg-vb-light text-vb-gray',
-  success: 'bg-vb-green/10 text-vb-green',
-  warning: 'bg-vb-yellow/20 text-vb-gray',
-  danger: 'bg-vb-red/10 text-vb-red',
-  court: 'bg-vb-orange-light text-vb-orange',
+  success: 'bg-green-100 text-green-800',
+  warning: 'bg-amber-100 text-amber-900',
+  danger: 'bg-red-100 text-red-800',
+  court: 'bg-vb-orange-light text-orange-800',
+  info: 'bg-blue-100 text-blue-900',
+  muted: 'bg-ink/5 text-ink/60',
 };
 
-export const Badge = React.memo<BadgeProps>(
-  ({ variant = 'default', className, children, ...props }) => (
+export function Badge({ variant = 'default', className, children, ...props }: BadgeProps) {
+  return (
     <span
-      className={clsx(
-        'inline-flex items-center rounded-md px-2.5 py-1 text-xs font-bold uppercase tracking-wide',
-        variantStyles[variant],
-        className
-      )}
+      className={clsx('inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold', variantStyles[variant], className)}
       {...props}
     >
       {children}
     </span>
-  )
-);
-
-Badge.displayName = 'Badge';
+  );
+}
