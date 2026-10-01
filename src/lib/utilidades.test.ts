@@ -28,7 +28,7 @@ describe('teléfonos argentinos', () => {
 describe('archivos', () => {
   it('genera CSV para Excel y lo vuelve a leer', () => {
     const csv = generarCsv(['Nombre', 'Monto'], [['Pérez; Juan', 1000], ['=SUMA(A1)', 'texto "citado"']]);
-    expect(csv.startsWith('﻿')).toBe(true);
+    expect(csv.charCodeAt(0)).toBe(0xfeff);
     expect(parsearCsv(csv)).toEqual([
       ['Nombre', 'Monto'],
       ['Pérez; Juan', '1000'],

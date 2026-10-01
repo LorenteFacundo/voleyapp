@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   addDaysToISODate, diaSemana, diferenciaEnDias, fechaArgentina, formatDiaRelativo, formatDuracion, formatFechaCorta,
+  formatFechaLarga,
   formatRangoHorario, horaArgentina, inicioDeSemana, instanteArgentina, minutosAHora, todayArgentinaISO,
 } from './date';
 
@@ -35,6 +36,7 @@ describe('fechas en hora de Argentina', () => {
   it('formatea para mostrar', () => {
     expect(formatRangoHorario('2026-10-06T01:00:00.000Z', '2026-10-06T03:00:00.000Z')).toBe('22:00–00:00');
     expect(formatFechaCorta('2026-10-05')).toMatch(/lun.*5.*oct/);
+    expect(formatFechaLarga('2026-10-06')).toBe('martes 6 de octubre');
     expect(formatDiaRelativo('2026-10-06', '2026-10-05')).toBe('Mañana');
     expect(formatDuracion(90)).toBe('1 h 30 min');
     expect(minutosAHora(1440 + 30)).toBe('00:30');

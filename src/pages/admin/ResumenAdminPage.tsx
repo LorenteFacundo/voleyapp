@@ -1,3 +1,5 @@
+import { ResumenAdmin } from '@/features/admin/ResumenAdmin';
+
 export function ResumenAdminPage() {
-  return <h2 className="text-xl font-bold text-vb-blue">Resumen</h2>;
+  return <ResumenAdmin />;
 }

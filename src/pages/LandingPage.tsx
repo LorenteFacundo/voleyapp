@@ -1,56 +1,169 @@
-import { FormEvent, useState } from 'react';
+import { useId, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, CalendarDays, CheckCircle2, MapPin, MessageCircle, ShieldCheck, Volleyball } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { publicoApi } from '@/api/publico';
+import { mensajeDeError } from '@/api/cliente';
 
 const whatsapp = (import.meta.env.VITE_CONTACT_WHATSAPP as string | undefined)?.replace(/\D/g, '');
 const leadsEnabled = import.meta.env.VITE_CLUB_LEADS_ENABLED === 'true';
 
-export function LandingPage() {
+/** Los envíos hechos antes de este tiempo suelen ser bots: se pide confirmar. */
+const ESPERA_MINIMA_MS = 2500;
+
+const BENEFICIOS_CLUBES = [
+  'Agenda unificada: reservas de WhatsApp, teléfono y la app en un solo lugar',
+  'Alquileres fijos con cobro semana a semana',
+  'Avisos automáticos de pedidos, confirmaciones y recordatorios',
+  'Página propia del club para compartir tus turnos libres',
+  'Reportes de ocupación, cobros y clientes',
+];
+
+const claseCampo = 'mt-1 block w-full rounded-xl border border-[#142153]/20 px-4 py-3 text-base font-normal outline-none '
+  + 'focus:border-vb-orange-ink focus:ring-2 focus:ring-vb-orange-ink';
+
+function FormularioClub() {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
+  const [aviso, setAviso] = useState('');
   const [loadedAt] = useState(Date.now);
+  const id = useId();
 
   async function sendLead(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!leadsEnabled) { setError('El formulario estará disponible pronto.'); return; }
     const form = event.currentTarget;
     const data = new FormData(form);
-    if (data.get('website') || Date.now() - loadedAt < 2500) return;
+    // Campo trampa para bots: se ignora sin avisar.
+    if (data.get('website')) return;
+    if (Date.now() - loadedAt < ESPERA_MINIMA_MS) {
+      setError('');
+      setAviso('¡Qué rapidez! Revisá que los datos estén bien y tocá de nuevo el botón para enviar.');
+      return;
+    }
     setSending(true);
     setError('');
+    setAviso('');
     try {
-      const { error: submitError } = await supabase.functions.invoke('submit-club-lead', {
-        body: {
-          club_nombre: String(data.get('club') ?? '').trim(),
-          localidad: String(data.get('localidad') ?? '').trim(),
-          contacto_nombre: String(data.get('nombre') ?? '').trim(),
-          contacto: String(data.get('contacto') ?? '').trim(),
-          cantidad_canchas: Number(data.get('canchas') || 1),
-          website: String(data.get('website') ?? ''),
-        },
+      await publicoApi.enviarInteresClub({
+        club_nombre: String(data.get('club') ?? '').trim(),
+        localidad: String(data.get('localidad') ?? '').trim(),
+        contacto_nombre: String(data.get('nombre') ?? '').trim(),
+        contacto: String(data.get('contacto') ?? '').trim(),
+        cantidad_canchas: Number(data.get('canchas') || 1),
+        website: String(data.get('website') ?? ''),
       });
-      if (submitError) throw submitError;
       form.reset();
       setSent(true);
-    } catch {
-      setError('No pudimos enviar tu consulta. Intentá de nuevo en un momento.');
+    } catch (errorEnvio) {
+      setError(mensajeDeError(errorEnvio));
     } finally {
       setSending(false);
     }
   }
 
+  if (sent) {
+    return (
+      <div role="status" className="mt-8 rounded-2xl bg-green-50 p-5 text-green-800">
+        <CheckCircle2 className="mb-2" aria-hidden="true" /> Recibimos tu consulta. Pronto nos comunicaremos.
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={sendLead} className="mt-6 grid gap-4">
+      <div>
+        <label htmlFor={`${id}-club`} className="text-sm font-bold">Nombre del club</label>
+        <input id={`${id}-club`} name="club" required minLength={2} maxLength={120} autoComplete="organization" className={claseCampo} />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor={`${id}-localidad`} className="text-sm font-bold">Localidad</label>
+          <input
+            id={`${id}-localidad`}
+            name="localidad"
+            required
+            minLength={2}
+            maxLength={100}
+            autoComplete="address-level2"
+            className={claseCampo}
+          />
+        </div>
+        <div>
+          <label htmlFor={`${id}-canchas`} className="text-sm font-bold">Cantidad de canchas</label>
+          <input
+            id={`${id}-canchas`}
+            name="canchas"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={100}
+            defaultValue={1}
+            required
+            className={claseCampo}
+          />
+        </div>
+      </div>
+      <div>
+        <label htmlFor={`${id}-nombre`} className="text-sm font-bold">Tu nombre</label>
+        <input id={`${id}-nombre`} name="nombre" required minLength={2} maxLength={100} autoComplete="name" className={claseCampo} />
+      </div>
+      <div>
+        <label htmlFor={`${id}-contacto`} className="text-sm font-bold">Email o WhatsApp</label>
+        <input
+          id={`${id}-contacto`}
+          name="contacto"
+          required
+          minLength={6}
+          maxLength={160}
+          autoComplete="email"
+          aria-describedby={`${id}-contacto-ayuda`}
+          className={claseCampo}
+        />
+        <p id={`${id}-contacto-ayuda`} className="mt-1 text-xs text-[#142153]/55">Te respondemos por ahí.</p>
+      </div>
+      <div className="absolute -left-[9999px]" aria-hidden="true">
+        <label htmlFor={`${id}-website`}>Sitio web</label>
+        <input id={`${id}-website`} name="website" tabIndex={-1} autoComplete="off" />
+      </div>
+      {aviso && <p role="status" className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">{aviso}</p>}
+      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+      <button
+        type="submit"
+        disabled={sending || !leadsEnabled}
+        className="mt-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-vb-orange-ink px-6 py-3.5 font-bold text-white transition hover:bg-[#ef5c28] disabled:opacity-60"
+      >
+        {sending ? 'Enviando…' : leadsEnabled ? 'Quiero sumar mi cancha' : 'Formulario próximamente'} <ArrowRight size={18} aria-hidden="true" />
+      </button>
+      {!leadsEnabled && whatsapp && (
+        <p className="text-sm text-[#142153]/70">
+          Mientras tanto,{' '}
+          <a
+            className="font-bold underline hover:text-vb-orange-ink"
+            href={`https://wa.me/${whatsapp}?text=${encodeURIComponent('Hola, quiero sumar mi cancha a VoleyApp')}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            escribinos por WhatsApp
+          </a>.
+        </p>
+      )}
+      <p className="text-xs text-[#142153]/50">Usaremos estos datos solo para responder tu consulta.</p>
+    </form>
+  );
+}
+
+export function LandingPage() {
   return (
     <div className="min-h-screen bg-[#f9f7f0] text-[#142153]">
       <header className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8">
         <Link to="/" className="flex items-center gap-2 font-display text-xl font-black tracking-tight">
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-vb-orange text-white"><Volleyball size={23} /></span>
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-vb-orange-ink text-white"><Volleyball size={23} /></span>
           VoleyApp
         </Link>
         <div className="flex items-center gap-3">
-          <a href="#clubes" className="hidden text-sm font-semibold hover:text-vb-orange sm:inline">Para canchas</a>
-          <Link to="/app" className="rounded-full bg-[#142153] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-vb-orange">Entrar a la app</Link>
+          <a href="#clubes" className="hidden text-sm font-semibold hover:text-vb-orange-ink sm:inline">Para canchas</a>
+          <Link to="/app" className="rounded-full bg-[#142153] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-vb-orange-ink">Entrar a la app</Link>
         </div>
       </header>
 
@@ -64,7 +177,7 @@ export function LandingPage() {
               <h1 className="font-display text-5xl font-black leading-[1.02] tracking-tight text-white sm:text-7xl">Más voley.<br /><span className="text-[#ffcf64]">Menos vueltas.</span></h1>
               <p className="mt-7 max-w-xl text-lg leading-relaxed text-white/75">Encontrá una cancha, armá un partido y sumá jugadores. Todo en un mismo lugar.</p>
               <div className="mt-9 flex flex-wrap gap-3">
-                <Link to="/app" className="inline-flex items-center gap-2 rounded-full bg-vb-orange px-7 py-3.5 font-bold text-white shadow-lg shadow-black/15 transition hover:-translate-y-0.5 hover:bg-[#ff865b]">Quiero jugar <ArrowRight size={18} /></Link>
+                <Link to="/app" className="inline-flex items-center gap-2 rounded-full bg-vb-orange-ink px-7 py-3.5 font-bold text-white shadow-lg shadow-black/15 transition hover:-translate-y-0.5 hover:bg-[#ff865b]">Quiero jugar <ArrowRight size={18} /></Link>
                 <a href="#clubes" className="inline-flex items-center gap-2 rounded-full border border-white/35 px-7 py-3.5 font-bold transition hover:bg-white/10">Tengo una cancha</a>
               </div>
             </div>
@@ -72,7 +185,7 @@ export function LandingPage() {
               <div className="absolute -left-10 -top-12 rotate-[-8deg] rounded-2xl bg-[#ffcf64] px-6 py-4 font-display text-2xl font-black text-[#142153] shadow-2xl">¿Sale partido?</div>
               <div className="rounded-[2.5rem] border border-white/20 bg-white/10 p-6 shadow-2xl backdrop-blur">
                 <div className="rounded-[2rem] bg-[#f9f7f0] p-7 text-[#142153]">
-                  <div className="mb-7 flex items-center justify-between"><span className="font-display text-xl font-black">Próximo partido</span><Volleyball className="text-vb-orange" /></div>
+                  <div className="mb-7 flex items-center justify-between"><span className="font-display text-xl font-black">Próximo partido</span><Volleyball className="text-vb-orange-ink" /></div>
                   <div className="space-y-4 text-sm font-semibold"><div className="rounded-2xl bg-white p-4">📍 Elegí tu cancha</div><div className="rounded-2xl bg-white p-4">🗓️ Encontrá un horario</div><div className="rounded-2xl bg-white p-4">🙌 Invitá jugadores</div></div>
                   <div className="mt-7 rounded-2xl bg-[#142153] px-5 py-4 text-center font-bold text-white">Todo listo para jugar</div>
                 </div>
@@ -82,7 +195,7 @@ export function LandingPage() {
         </section>
 
         <section className="mx-auto max-w-7xl px-5 py-20 sm:px-8">
-          <p className="text-xs font-black uppercase tracking-[.2em] text-vb-orange">Para quienes quieren jugar</p>
+          <p className="text-xs font-black uppercase tracking-[.2em] text-vb-orange-ink">Para quienes quieren jugar</p>
           <h2 className="mt-3 max-w-2xl font-display text-4xl font-black tracking-tight sm:text-5xl">Del “¿quién se prende?” al partido armado.</h2>
           <div className="mt-10 grid gap-5 md:grid-cols-3">
             {[
@@ -91,7 +204,7 @@ export function LandingPage() {
               { icon: Volleyball, title: 'Completá el equipo', text: 'Organizá un partido y compartilo con tu grupo.' },
             ].map(({ icon: Icon, title, text }, index) => (
               <div key={title} className="rounded-[1.7rem] border border-[#142153]/10 bg-white p-7 shadow-[0_20px_50px_-35px_rgba(20,33,83,.35)]">
-                <div className="mb-6 flex items-center justify-between"><span className="grid h-12 w-12 place-items-center rounded-xl bg-vb-orange-light text-vb-orange"><Icon /></span><span className="font-display text-4xl font-black text-[#142153]/10">0{index + 1}</span></div>
+                <div className="mb-6 flex items-center justify-between"><span className="grid h-12 w-12 place-items-center rounded-xl bg-vb-orange-light text-vb-orange-ink"><Icon /></span><span className="font-display text-4xl font-black text-[#142153]/10">0{index + 1}</span></div>
                 <h3 className="font-display text-xl font-bold">{title}</h3><p className="mt-2 text-sm leading-relaxed text-[#142153]/65">{text}</p>
               </div>
             ))}
@@ -101,29 +214,22 @@ export function LandingPage() {
         <section id="clubes" className="bg-[#f0e9da] px-5 py-20 sm:px-8">
           <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-2 lg:items-start">
             <div>
-              <p className="text-xs font-black uppercase tracking-[.2em] text-vb-orange">Para clubes y canchas</p>
+              <p className="text-xs font-black uppercase tracking-[.2em] text-vb-orange-ink">Para clubes y canchas</p>
               <h2 className="mt-3 font-display text-4xl font-black tracking-tight sm:text-5xl">Tu agenda ordenada. Más espacio para jugar.</h2>
-              <p className="mt-6 max-w-lg leading-relaxed text-[#142153]/70">Reuní en una sola agenda tus reservas por WhatsApp, teléfono y VoleyApp. Mantené tus alquileres fijos y recibí nuevas solicitudes sin perder el control de tus horarios.</p>
-              <div className="mt-8 space-y-3">
-                {['Agenda semanal para todas tus canchas', 'Alquileres fijos y excepciones por fecha', 'Confirmación de cada solicitud desde el club'].map((item) => <div key={item} className="flex items-center gap-3 font-semibold"><CheckCircle2 className="text-vb-orange" size={20} />{item}</div>)}
-              </div>
+              <p className="mt-6 max-w-lg leading-relaxed text-[#142153]/70">Cargá en una sola agenda lo que te piden por WhatsApp, por teléfono o desde VoleyApp. Llevá tus fijos con lo que paga cada uno semana a semana y compartí la página de tu club para llenar los turnos libres.</p>
+              <ul className="mt-8 space-y-3">
+                {BENEFICIOS_CLUBES.map((item) => (
+                  <li key={item} className="flex items-start gap-3 font-semibold">
+                    <CheckCircle2 className="mt-0.5 shrink-0 text-vb-orange-ink" size={20} aria-hidden="true" />{item}
+                  </li>
+                ))}
+              </ul>
               {whatsapp && <a className="mt-8 inline-flex items-center gap-2 rounded-full border-2 border-[#142153] px-6 py-3 font-bold transition hover:bg-[#142153] hover:text-white" href={`https://wa.me/${whatsapp}?text=${encodeURIComponent('Hola, quiero sumar mi cancha a VoleyApp')}`} target="_blank" rel="noopener noreferrer"><MessageCircle size={20} /> Hablemos por WhatsApp</a>}
             </div>
             <div className="rounded-[2rem] bg-white p-6 shadow-[0_25px_80px_-45px_rgba(20,33,83,.4)] sm:p-9">
               <h3 className="font-display text-2xl font-black">Sumá tu cancha</h3>
               <p className="mt-2 text-sm text-[#142153]/60">Dejanos tus datos y te contactamos para conocer tu espacio.</p>
-              {sent ? <div role="status" className="mt-8 rounded-2xl bg-green-50 p-5 text-green-800"><CheckCircle2 className="mb-2" /> Recibimos tu consulta. Pronto nos comunicaremos.</div> : (
-                <form onSubmit={sendLead} className="mt-6 grid gap-4">
-                  <label className="text-sm font-bold">Nombre del club<input name="club" required minLength={2} maxLength={120} className="mt-1 block w-full rounded-xl border border-[#142153]/20 px-4 py-3 font-normal outline-none focus:border-vb-orange" /></label>
-                  <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-bold">Localidad<input name="localidad" required minLength={2} maxLength={100} className="mt-1 block w-full rounded-xl border border-[#142153]/20 px-4 py-3 font-normal outline-none focus:border-vb-orange" /></label><label className="text-sm font-bold">Cantidad de canchas<input name="canchas" type="number" min={1} max={100} defaultValue={1} required className="mt-1 block w-full rounded-xl border border-[#142153]/20 px-4 py-3 font-normal outline-none focus:border-vb-orange" /></label></div>
-                  <label className="text-sm font-bold">Tu nombre<input name="nombre" required minLength={2} maxLength={100} className="mt-1 block w-full rounded-xl border border-[#142153]/20 px-4 py-3 font-normal outline-none focus:border-vb-orange" /></label>
-                  <label className="text-sm font-bold">Email o WhatsApp<input name="contacto" required minLength={6} maxLength={160} className="mt-1 block w-full rounded-xl border border-[#142153]/20 px-4 py-3 font-normal outline-none focus:border-vb-orange" /></label>
-                  <label className="absolute -left-[9999px]" aria-hidden="true">Sitio web<input name="website" tabIndex={-1} autoComplete="off" /></label>
-                  {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-                  <button disabled={sending || !leadsEnabled} className="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-vb-orange px-6 py-3.5 font-bold text-white transition hover:bg-[#ef5c28] disabled:opacity-60">{sending ? 'Enviando...' : leadsEnabled ? 'Quiero sumar mi cancha' : 'Formulario próximamente'} <ArrowRight size={18} /></button>
-                  <p className="text-xs text-[#142153]/50">Usaremos estos datos solo para responder tu consulta.</p>
-                </form>
-              )}
+              <FormularioClub />
             </div>
           </div>
         </section>

@@ -18,9 +18,9 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 export function SinPermiso({ mensaje = 'No tenés acceso a esta sección.' }: { mensaje?: string }) {
   return (
     <div className="mx-auto flex min-h-[50dvh] max-w-md flex-col items-center justify-center gap-3 px-4 text-center">
-      <ShieldAlert className="text-vb-orange" size={36} aria-hidden="true" />
+      <ShieldAlert className="text-vb-orange-ink" size={36} aria-hidden="true" />
       <h1 className="text-xl font-bold text-ink">Acceso restringido</h1>
-      <p className="text-sm text-ink/60">{mensaje}</p>
+      <p className="text-sm text-ink/65">{mensaje}</p>
       <Link to="/app" className="mt-2 rounded-xl bg-vb-blue px-4 py-2.5 text-sm font-bold text-white">Volver al inicio</Link>
     </div>
   );

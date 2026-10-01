@@ -68,6 +68,9 @@ export const clubApi = {
 
   pendientes: (clubId: number) => rpcLista<Ocupacion>('club_pendientes', { p_club_id: clubId }),
 
+  /** Reservas en las que el jugador avisó que pagó y falta registrar el cobro (las más recientes primero). */
+  pagosInformados: (clubId: number) => rpcLista<Ocupacion>('club_pagos_informados', { p_club_id: clubId }),
+
   crearReserva: (datos: NuevaReserva) =>
     rpc<Ocupacion>('club_crear_reserva', {
       p_club_id: datos.clubId,
@@ -131,9 +134,10 @@ export const clubApi = {
 
   deudas: (clubId: number) => rpc<Deudas>('club_deudas', { p_club_id: clubId }),
 
-  clientes: (clubId: number, busqueda?: string | null, incluirArchivados = false) =>
+  /** Hasta `limite` clientes (el servidor admite hasta 500), ordenados por nombre. */
+  clientes: (clubId: number, busqueda?: string | null, incluirArchivados = false, limite = 200) =>
     rpcLista<ClienteListado>('club_clientes', {
-      p_club_id: clubId, p_busqueda: busqueda?.trim() || null, p_incluir_archivados: incluirArchivados,
+      p_club_id: clubId, p_busqueda: busqueda?.trim() || null, p_incluir_archivados: incluirArchivados, p_limite: limite,
     }),
 
   guardarCliente: (datos: { clubId: number; id?: number | null; nombre: string; telefono?: string | null; email?: string | null; notas?: string | null }) =>

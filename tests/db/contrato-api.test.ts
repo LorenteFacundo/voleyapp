@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -6,8 +6,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import type { PGlite } from '@electric-sql/pglite';
 import { crearBaseDePruebas, sql } from './harness';
 
-// Contrato entre el frontend y la base: cada RPC, tabla y bucket que usa el
-// código de src/ tiene que existir en la base migrada, con los mismos nombres
+// Contrato entre el frontend y la base: cada RPC, tabla, bucket y Edge Function
+// que usa el código de src/ tiene que existir en la base migrada, con los mismos nombres
 // de parámetros (PostgREST los resuelve por nombre) y permisos para el rol que
 // la llama. Un renombre en cualquiera de los dos lados rompe esta prueba.
 
@@ -17,6 +17,7 @@ const SRC = join(ROOT, 'src');
 type LlamadaRpc = { archivo: string; funcion: string | null; argumentos: string[] | null };
 type AccesoTabla = { archivo: string; tabla: string; metodo: string; seleccion: string | null };
 type UsoBucket = { archivo: string; bucket: string };
+type UsoFuncion = { archivo: string; funcion: string | null };
 type Seleccion = { tabla: string; columnas: string[]; embebidos: Seleccion[] };
 
 function archivosFuente(dir: string): string[] {
@@ -70,6 +71,7 @@ function analizarFuente() {
   const rpcs: LlamadaRpc[] = [];
   const tablas: AccesoTabla[] = [];
   const buckets: UsoBucket[] = [];
+  const funciones: UsoFuncion[] = [];
 
   for (const ruta of archivosFuente(SRC)) {
     const archivo = relative(ROOT, ruta).replace(/\\/g, '/');
@@ -95,6 +97,10 @@ function analizarFuente() {
             argumentos: clavesDeObjeto(segundo),
           });
         }
+        if (ts.isPropertyAccessExpression(llamado) && llamado.name.text === 'invoke'
+          && ts.isPropertyAccessExpression(llamado.expression) && llamado.expression.name.text === 'functions') {
+          funciones.push({ archivo, funcion: primero ? evaluarTexto(primero, constantes) : null });
+        }
         if (ts.isPropertyAccessExpression(llamado) && llamado.name.text === 'from' && primero) {
           const nombre = evaluarTexto(primero, constantes);
           const esStorage = ts.isPropertyAccessExpression(llamado.expression) && llamado.expression.name.text === 'storage';
@@ -118,7 +124,7 @@ function analizarFuente() {
     };
     visitar(fuente);
   }
-  return { rpcs, tablas, buckets };
+  return { rpcs, tablas, buckets, funciones };
 }
 
 function partirNivelSuperior(texto: string): string[] {
@@ -168,7 +174,7 @@ const PRIVILEGIO_POR_METODO: Record<string, string> = {
 };
 
 describe('contrato entre el frontend y la base', () => {
-  const { rpcs, tablas, buckets } = analizarFuente();
+  const { rpcs, tablas, buckets, funciones } = analizarFuente();
   let db: PGlite;
 
   beforeAll(async () => {
@@ -181,7 +187,7 @@ describe('contrato entre el frontend y la base', () => {
   });
 
   it('solo src/api habla con la base', () => {
-    const fuera = [...rpcs, ...tablas, ...buckets]
+    const fuera = [...rpcs, ...tablas, ...buckets, ...funciones]
       .map((uso) => uso.archivo)
       .filter((archivo) => !archivo.startsWith('src/api/'));
     expect([...new Set(fuera)]).toEqual([]);
@@ -275,6 +281,14 @@ describe('contrato entre el frontend y la base', () => {
       if (!permiso.ok) problemas.push(`${acceso.tabla} (${acceso.archivo}): authenticated no tiene ${privilegio}`);
     }
     expect(problemas).toEqual([]);
+  });
+
+  it('cada Edge Function que se invoca está en supabase/functions', () => {
+    expect(funciones.length).toBeGreaterThan(0);
+    for (const uso of funciones) {
+      expect(uso.funcion, `nombre no literal en ${uso.archivo}`).not.toBeNull();
+      expect(existsSync(join(ROOT, 'supabase', 'functions', uso.funcion ?? '', 'index.ts')), `${uso.funcion} (${uso.archivo})`).toBe(true);
+    }
   });
 
   it('los buckets de Storage existen', async () => {

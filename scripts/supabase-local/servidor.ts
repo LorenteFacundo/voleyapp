@@ -491,6 +491,11 @@ async function auth(db: PGlite, req: IncomingMessage, res: ServerResponse, ruta:
     responder(res, 200, {});
     return;
   }
+  if (ruta === 'resend' && req.method === 'POST') {
+    // Las cuentas locales quedan confirmadas al crearse: no hay nada que reenviar.
+    responder(res, 200, {});
+    return;
+  }
   if (ruta === 'settings') {
     responder(res, 200, { external: { email: true }, disable_signup: false, mailer_autoconfirm: true });
     return;

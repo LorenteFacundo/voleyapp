@@ -1,29 +1,13 @@
 import React from 'react';
 import clsx from 'clsx';
+import { clasesBoton, type TamanoBoton, type VarianteBoton } from './estilosBoton';
 
 type ButtonProps = {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'blue' | 'success';
-  size?: 'sm' | 'md' | 'lg' | 'icon';
+  variant?: VarianteBoton;
+  size?: TamanoBoton;
   loading?: boolean;
   fullWidth?: boolean;
 } & React.ButtonHTMLAttributes<HTMLButtonElement>;
-
-const variantStyles = {
-  primary: 'bg-vb-orange text-white hover:bg-vb-orange/90 shadow-card',
-  secondary: 'border border-vb-gray/15 bg-white text-vb-gray hover:border-vb-orange hover:text-vb-orange',
-  ghost: 'text-vb-gray/75 hover:text-vb-gray hover:bg-vb-gray/5',
-  danger: 'bg-red-700 text-white hover:bg-red-800',
-  blue: 'bg-vb-blue text-white hover:bg-vb-blue/90 shadow-card',
-  success: 'bg-green-700 text-white hover:bg-green-800',
-};
-
-// Alturas mínimas pensadas para el pulgar (44 px en md).
-const sizeStyles = {
-  sm: 'min-h-9 px-3 text-sm',
-  md: 'min-h-11 px-4 text-sm',
-  lg: 'min-h-12 px-5 text-base',
-  icon: 'h-11 w-11 p-0',
-};
 
 export function Spinner({ className }: { className?: string }) {
   return (
@@ -41,15 +25,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       type={type}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={clsx(
-        'inline-flex select-none items-center justify-center gap-2 rounded-xl font-semibold transition-colors duration-150',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vb-orange/60 focus-visible:ring-offset-2',
-        variantStyles[variant],
-        sizeStyles[size],
-        fullWidth && 'w-full',
-        (disabled || loading) && 'cursor-not-allowed opacity-60',
-        className,
-      )}
+      className={clasesBoton({ variant, size, fullWidth, deshabilitado: disabled || loading, className })}
       {...props}
     >
       {loading && <Spinner />}

@@ -4,6 +4,16 @@ import type { Perfil } from '@/api/tipos';
 
 type ResultadoRegistro = { error: string | null; requiereConfirmacion: boolean };
 
+export type DatosRegistro = {
+  email: string;
+  password: string;
+  nombre: string;
+  nivel: number;
+  telefono?: string | null;
+  /** Ruta interna a la que lleva el enlace de confirmación (por defecto, /app). */
+  destino?: string | null;
+};
+
 export type AuthContextValue = {
   session: Session | null;
   perfil: Perfil | null;
@@ -14,7 +24,9 @@ export type AuthContextValue = {
   esAdmin: boolean;
   esStaff: boolean;
   signIn: (email: string, password: string) => Promise<string | null>;
-  signUp: (datos: { email: string; password: string; nombre: string; nivel: number; telefono?: string | null }) => Promise<ResultadoRegistro>;
+  signUp: (datos: DatosRegistro) => Promise<ResultadoRegistro>;
+  /** Vuelve a mandar el email de confirmación de una cuenta nueva. */
+  reenviarConfirmacion: (email: string, destino?: string | null) => Promise<string | null>;
   signOut: () => Promise<void>;
   enviarRecuperacion: (email: string) => Promise<string | null>;
   cambiarClave: (password: string) => Promise<string | null>;

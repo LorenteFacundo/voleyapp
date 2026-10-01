@@ -180,11 +180,15 @@ describe('modelo v2: operación del club', () => {
         p_cliente_nombre: 'Juli', p_cliente_telefono: '1177778888',
       };
       await expect(rpc(db, club.dueno, 'club_crear_serie', base)).rejects.toThrow(/ya está ocupada/);
+      const resumenAntes = await rpc<{ reservas_semana: number }>(db, club.admin, 'admin_resumen', {});
       const serie = await rpc<{ serie_id: number; creadas: number; conflictos: string[] }>(db, club.dueno, 'club_crear_serie', {
         ...base, p_omitir_conflictos: true,
       });
       expect(serie.creadas).toBe(vista.fechas - 1);
       expect(serie.conflictos).toHaveLength(1);
+      // Las fechas generadas por un fijo no inflan las reservas nuevas del resumen.
+      const resumenDespues = await rpc<{ reservas_semana: number }>(db, club.admin, 'admin_resumen', {});
+      expect(resumenDespues.reservas_semana).toBe(resumenAntes.reservas_semana);
 
       const fechas = await sql<{ dia: number; hora: string; minutos: number }>(db, `
         select extract(dow from inicio at time zone 'America/Argentina/Buenos_Aires')::int as dia,

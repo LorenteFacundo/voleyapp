@@ -20,6 +20,12 @@ const anchos = { sm: 'sm:max-w-md', md: 'sm:max-w-lg', lg: 'sm:max-w-2xl', xl: '
 
 const ENFOCABLES = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
+// Diálogos abiertos, del más viejo al más nuevo (por ejemplo, una confirmación
+// sobre una ficha): Escape y el ciclo de Tab solo afectan al de arriba, y el
+// scroll de la página se libera cuando se cierra el último.
+const pila: symbol[] = [];
+let overflowOriginal = '';
+
 /**
  * Diálogo accesible: en celulares se abre como hoja desde abajo. Atrapa el
  * foco, cierra con Escape y devuelve el foco al elemento que lo abrió.
@@ -38,17 +44,21 @@ export function Modal({ open, onClose, title, descripcion, children, footer, siz
 
   useEffect(() => {
     if (!open) return;
+    const propio = Symbol('modal');
+    if (pila.length === 0) {
+      overflowOriginal = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+    }
+    pila.push(propio);
     const previo = document.activeElement as HTMLElement | null;
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
     const panel = panelRef.current;
     const primero = panel?.querySelector<HTMLElement>('[data-autofocus]') ?? panel?.querySelector<HTMLElement>(ENFOCABLES);
     (primero ?? panel)?.focus();
 
     const alTeclear = (evento: KeyboardEvent) => {
-      if (evento.key === 'Escape' && !bloqueadoRef.current) {
-        evento.stopPropagation();
-        onCloseRef.current();
+      if (pila[pila.length - 1] !== propio) return;
+      if (evento.key === 'Escape') {
+        if (!bloqueadoRef.current) onCloseRef.current();
         return;
       }
       if (evento.key !== 'Tab' || !panel) return;
@@ -61,7 +71,8 @@ export function Modal({ open, onClose, title, descripcion, children, footer, siz
     document.addEventListener('keydown', alTeclear);
     return () => {
       document.removeEventListener('keydown', alTeclear);
-      document.body.style.overflow = overflow;
+      pila.splice(pila.indexOf(propio), 1);
+      if (pila.length === 0) document.body.style.overflow = overflowOriginal;
       previo?.focus?.();
     };
   }, [open]);
@@ -92,14 +103,14 @@ export function Modal({ open, onClose, title, descripcion, children, footer, siz
         <div className="flex items-start justify-between gap-4 border-b border-ink/10 px-5 py-4">
           <div className="min-w-0">
             <h2 id={titleId} className="text-lg font-bold text-ink">{title}</h2>
-            {descripcion && <p id={descId} className="mt-0.5 text-sm text-ink/60">{descripcion}</p>}
+            {descripcion && <p id={descId} className="mt-0.5 text-sm text-ink/65">{descripcion}</p>}
           </div>
           <button
             type="button"
             onClick={onClose}
             disabled={bloqueado}
             aria-label="Cerrar"
-            className="-mr-2 grid h-10 w-10 shrink-0 place-items-center rounded-full text-ink/55 transition hover:bg-ink/5 hover:text-ink disabled:opacity-40"
+            className="-mr-2 grid h-10 w-10 shrink-0 place-items-center rounded-full text-ink/65 transition hover:bg-ink/5 hover:text-ink disabled:opacity-40"
           >
             <X size={20} />
           </button>

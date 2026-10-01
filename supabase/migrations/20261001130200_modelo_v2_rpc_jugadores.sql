@@ -314,7 +314,9 @@ as $$
   select pa.id from public.partidos pa
   where p_token is not null and length(p_token) >= 16
     and pa.token_invitacion = p_token
-    and pa.estado_partido in ('borrador', 'abierto', 'confirmado')
+    -- Mismos estados que partido_detalle muestra con el token: un borrador
+    -- (cancha sin confirmar) todavía no se comparte.
+    and pa.estado_partido in ('abierto', 'confirmado', 'finalizado')
   limit 1
 $$;
 

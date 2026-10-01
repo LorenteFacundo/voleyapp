@@ -6,8 +6,8 @@ import { Button, Spinner } from './Button';
 
 export function Cargando({ texto = 'Cargando…', className }: { texto?: string; className?: string }) {
   return (
-    <div role="status" className={clsx('flex items-center justify-center gap-2 py-10 text-sm text-ink/55', className)}>
-      <Spinner className="h-5 w-5 text-vb-orange" />
+    <div role="status" className={clsx('flex items-center justify-center gap-2 py-10 text-sm text-ink/65', className)}>
+      <Spinner className="h-5 w-5 text-vb-orange-ink" />
       {texto}
     </div>
   );
@@ -18,9 +18,9 @@ export function Vacio({
 }: { icono?: ReactNode; titulo: string; descripcion?: ReactNode; accion?: ReactNode; className?: string }) {
   return (
     <div className={clsx('flex flex-col items-center gap-2 px-4 py-10 text-center', className)}>
-      {icono && <div className="mb-1 text-vb-orange" aria-hidden="true">{icono}</div>}
+      {icono && <div className="mb-1 text-vb-orange-ink" aria-hidden="true">{icono}</div>}
       <h3 className="text-base font-bold text-ink">{titulo}</h3>
-      {descripcion && <p className="max-w-sm text-sm text-ink/60">{descripcion}</p>}
+      {descripcion && <p className="max-w-sm text-sm text-ink/65">{descripcion}</p>}
       {accion && <div className="mt-3">{accion}</div>}
     </div>
   );

@@ -164,6 +164,14 @@ export function usePendientes(clubId: number | null) {
   });
 }
 
+export function usePagosInformados(clubId: number | null) {
+  return useQuery({
+    queryKey: claves.pagosInformados(clubId ?? 0),
+    queryFn: () => clubApi.pagosInformados(clubId!),
+    enabled: !!clubId,
+  });
+}
+
 export function useClientes(clubId: number | null, busqueda = '', archivados = false) {
   return useQuery({
     queryKey: claves.clientes(clubId ?? 0, busqueda, archivados),

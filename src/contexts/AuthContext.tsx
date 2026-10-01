@@ -4,7 +4,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { jugadorApi } from '@/api/jugador';
 import { claves } from '@/api/claves';
-import { AuthContext, traducirErrorAuth, type AuthContextValue } from './auth';
+import { rutaInternaSegura } from '@/lib/navigation';
+import { AuthContext, traducirErrorAuth, type AuthContextValue, type DatosRegistro } from './auth';
+
+/** URL absoluta de la app para los enlaces de los emails de Auth. */
+function urlDeRetorno(destino?: string | null): string {
+  return `${window.location.origin}${rutaInternaSegura(destino) ?? '/app'}`;
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
@@ -49,17 +55,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return error ? traducirErrorAuth(error.message) : null;
   }, []);
 
-  const signUp = useCallback(async (datos: { email: string; password: string; nombre: string; nivel: number; telefono?: string | null }) => {
+  const signUp = useCallback(async (datos: DatosRegistro) => {
     const { data, error } = await supabase.auth.signUp({
       email: datos.email.trim(),
       password: datos.password,
       options: {
-        emailRedirectTo: `${window.location.origin}/app`,
+        emailRedirectTo: urlDeRetorno(datos.destino),
         data: { nombre_completo: datos.nombre.trim(), nivel_voley: datos.nivel, telefono: datos.telefono ?? null },
       },
     });
     if (error) return { error: traducirErrorAuth(error.message), requiereConfirmacion: false };
     return { error: null, requiereConfirmacion: !data.session };
+  }, []);
+
+  const reenviarConfirmacion = useCallback(async (email: string, destino?: string | null) => {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email.trim(),
+      options: { emailRedirectTo: urlDeRetorno(destino) },
+    });
+    return error ? traducirErrorAuth(error.message) : null;
   }, []);
 
   const signOut = useCallback(async () => {
@@ -69,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const enviarRecuperacion = useCallback(async (email: string) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/perfil`,
+      redirectTo: urlDeRetorno('/perfil'),
     });
     return error ? traducirErrorAuth(error.message) : null;
   }, []);
@@ -95,12 +110,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     esStaff: !!perfil && (perfil.es_admin || perfil.clubes.length > 0),
     signIn,
     signUp,
+    reenviarConfirmacion,
     signOut,
     enviarRecuperacion,
     cambiarClave,
     terminarRecuperacion: () => setRecuperandoClave(false),
     refreshPerfil,
-  }), [session, perfil, sesionLista, userId, perfilQuery.isPending, recuperandoClave, signIn, signUp, signOut,
+  }), [session, perfil, sesionLista, userId, perfilQuery.isPending, recuperandoClave, signIn, signUp, reenviarConfirmacion, signOut,
     enviarRecuperacion, cambiarClave, refreshPerfil]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,7 +1,10 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2023", "DOM"],
+    "lib": [
+      "ES2023",
+      "DOM"
+    ],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "allowImportingTsExtensions": true,
@@ -9,9 +12,20 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
-    "types": ["node"],
-    "paths": { "@/*": ["./src/*"] },
-    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.herramientas.tsbuildinfo"
+    "types": [
+      "node"
+    ],
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    },
+    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.herramientas.tsbuildinfo",
+    "incremental": true
   },
-  "include": ["tests/**/*.ts", "scripts/**/*.ts", "vitest.config.ts"]
+  "include": [
+    "tests/**/*.ts",
+    "scripts/**/*.ts",
+    "vitest.config.ts"
+  ]
 }

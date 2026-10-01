@@ -10,6 +10,8 @@ export default {
       colors: {
         'vb-orange': '#FF6B35',
         'vb-orange-light': '#FFF3ED',
+        // Naranja para texto y fondos con texto blanco (contraste AA sobre blanco).
+        'vb-orange-ink': '#C2410C',
         'vb-blue': '#1A237E',
         'vb-yellow': '#FFD23F',
         'vb-white': '#FFFFFF',

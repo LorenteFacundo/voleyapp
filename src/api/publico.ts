@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { rpc, rpcLista, traducirError } from './cliente';
+import { ApiError, rpc, rpcLista, traducirError } from './cliente';
 import type {
   ClubPublico, Disponibilidad, EstadoOperacion, InvitacionClub, PartidoDetalle, PartidoExplorado, PosicionRanking,
 } from './tipos';
@@ -7,6 +7,33 @@ import type {
 const COLUMNAS_CANCHA = 'id,club_id,titulo,descripcion,fotos,precio_total,precio_sena,techada,superficie,orden';
 const COLUMNAS_CLUB = 'id,nombre,slug,direccion,zona,telefono,whatsapp,instagram,descripcion,latitud,longitud,'
   + 'politicas,confirmacion_automatica,anticipacion_minima_min,ventana_reserva_dias,cancelacion_horas,respuesta_horas';
+
+/** Datos del formulario "Sumá tu cancha" de la landing. */
+export type InteresClub = {
+  club_nombre: string;
+  localidad: string;
+  contacto_nombre: string;
+  contacto: string;
+  cantidad_canchas: number;
+  /** Campo trampa para bots: siempre vacío para personas. */
+  website: string;
+};
+
+const ERROR_INTERES = 'No pudimos enviar tu consulta. Intentá de nuevo en un momento.';
+
+/** Mensaje que devuelve la Edge Function (ya está en español) o uno genérico. */
+async function mensajeDeFuncion(error: unknown): Promise<string> {
+  const respuesta = (error as { context?: unknown } | null)?.context;
+  if (respuesta instanceof Response) {
+    try {
+      const cuerpo = (await respuesta.clone().json()) as { error?: unknown };
+      if (typeof cuerpo.error === 'string' && cuerpo.error.trim()) return cuerpo.error;
+    } catch {
+      // Sin cuerpo JSON: se usa el mensaje genérico.
+    }
+  }
+  return ERROR_INTERES;
+}
 
 function ordenarCanchas(club: ClubPublico): ClubPublico {
   return {
@@ -75,4 +102,15 @@ export const publicoApi = {
   ranking: (limite = 10) => rpcLista<PosicionRanking>('ranking', { p_limite: limite }),
 
   verInvitacionClub: (token: string) => rpc<InvitacionClub>('ver_invitacion_club', { p_token: token }),
+
+  /** Envía el formulario de clubes interesados (Edge Function submit-club-lead, con límite de envíos). */
+  async enviarInteresClub(datos: InteresClub): Promise<void> {
+    let error: unknown;
+    try {
+      ({ error } = await supabase.functions.invoke('submit-club-lead', { body: datos }));
+    } catch {
+      throw new ApiError(ERROR_INTERES);
+    }
+    if (error) throw new ApiError(await mensajeDeFuncion(error));
+  },
 };

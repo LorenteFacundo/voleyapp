@@ -57,7 +57,9 @@ export const jugadorApi = {
 
   misPartidos: () => rpcLista<MiPartido>('mis_partidos'),
 
-  mensajes: (partidoId: number) => rpcLista<Mensaje>('mensajes_partido', { p_partido_id: partidoId }),
+  /** Los 50 mensajes más nuevos (o los anteriores al id indicado), del más nuevo al más viejo. */
+  mensajes: (partidoId: number, antesDe?: number | null) =>
+    rpcLista<Mensaje>('mensajes_partido', { p_partido_id: partidoId, p_antes_de: antesDe ?? null }),
 
   enviarMensaje: (partidoId: number, texto: string) =>
     rpc<{ id: number; texto: string; created_at: string }>('enviar_mensaje', { p_partido_id: partidoId, p_texto: texto }),

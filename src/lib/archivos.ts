@@ -1,9 +1,19 @@
 // Archivos generados en el navegador: CSV compatible con Excel en español y
 // eventos de calendario (.ics).
 
+import { fechaArgentina, horaArgentina } from './date';
+
 const SEPARADOR_EXCEL = ';';
 
+/** "1234,5": coma decimal, como lo espera Excel en español. */
+export function numeroCsv(valor: number): string {
+  if (!Number.isFinite(valor)) return '';
+  return String(Math.round(valor * 100) / 100).replace('.', ',');
+}
+
 function celdaCsv(valor: unknown): string {
+  // Los números viajan como números: un monto negativo no es una fórmula.
+  if (typeof valor === 'number') return numeroCsv(valor);
   if (valor === null || valor === undefined) return '';
   const texto = String(valor);
   // Evita que Excel interprete el contenido como fórmula.
@@ -15,6 +25,21 @@ export function generarCsv(encabezados: string[], filas: unknown[][]): string {
   const lineas = [encabezados, ...filas].map((fila) => fila.map(celdaCsv).join(SEPARADOR_EXCEL));
   // BOM para que Excel reconozca UTF-8 (acentos y ñ).
   return `\ufeff${lineas.join('\r\n')}\r\n`;
+}
+
+/** "2026-10-06 19:00" en hora de Buenos Aires (Excel lo reconoce como fecha). */
+export function instanteParaPlanilla(instante: string | null | undefined): string {
+  return instante ? `${fechaArgentina(instante)} ${horaArgentina(instante)}` : '';
+}
+
+/** Nombre de archivo sin acentos ni símbolos: nombreArchivo('caja', 'Club Sur') → "caja_club-sur.csv". */
+export function nombreArchivo(...partes: string[]): string {
+  const base = partes
+    .map((parte) => parte.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9-]+/g, '-'))
+    .map((parte) => parte.replace(/^-+|-+$/g, ''))
+    .filter(Boolean)
+    .join('_');
+  return `${base || 'export'}.csv`;
 }
 
 /** Lee un CSV (separado por ; o ,) respetando comillas. */

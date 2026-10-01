@@ -61,11 +61,17 @@ describe('modelo v2: partidos', () => {
   });
 
   it('los partidos por enlace exigen el token y solo lo ven quienes participan', async () => {
-    const { partido_id: id } = await crearPartido(3, '18:00', { cupo_minimo: 2, cupo_maximo: 10, visibilidad: 'enlace' });
-    await expect(rpc(db, jugadores[0], 'partido_detalle', { p_partido_id: id })).rejects.toThrow(/no encontrado/);
-    await expect(rpc(db, jugadores[0], 'partido_unirse', { p_partido_id: id })).rejects.toThrow(/no encontrado/);
+    const solicitud = await crearPartido(3, '18:00', { cupo_minimo: 2, cupo_maximo: 10, visibilidad: 'enlace' }, false);
+    const id = solicitud.partido_id;
     const propio = await rpc<Detalle>(db, organizadora, 'partido_detalle', { p_partido_id: id });
     expect(propio.token).toMatch(/^[a-f0-9]{32}$/);
+    // Con la cancha sin confirmar, el enlace todavía no lleva a ningún partido.
+    expect(await rpc(db, ANON, 'buscar_partido_por_token', { p_token: propio.token })).toBeNull();
+    await expect(rpc(db, ANON, 'partido_detalle', { p_partido_id: id, p_token: propio.token })).rejects.toThrow(/no encontrado/);
+    await rpc(db, club.dueno, 'club_resolver_solicitud', { p_ocupacion_id: solicitud.ocupacion_id, p_confirmar: true });
+
+    await expect(rpc(db, jugadores[0], 'partido_detalle', { p_partido_id: id })).rejects.toThrow(/no encontrado/);
+    await expect(rpc(db, jugadores[0], 'partido_unirse', { p_partido_id: id })).rejects.toThrow(/no encontrado/);
     expect(await rpc(db, ANON, 'buscar_partido_por_token', { p_token: propio.token })).toBe(id);
     const conToken = await rpc<Detalle>(db, ANON, 'partido_detalle', { p_partido_id: id, p_token: propio.token });
     expect(conToken.token).toBeNull();

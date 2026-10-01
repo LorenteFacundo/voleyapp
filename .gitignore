@@ -13,3 +13,6 @@ vite.config.d.ts
 !.env.example
 skills-lock.json
 opencode.json
+
+# Configuración local del preview de Claude
+.claude/launch.json

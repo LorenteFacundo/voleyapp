@@ -274,6 +274,24 @@ begin
 end;
 $$;
 
+-- Reservas en las que el jugador avisó que pagó y el club todavía no registró
+-- todo el cobro (las mismas que cuenta club_panel), sin importar la fecha.
+create or replace function public.club_pagos_informados(p_club_id bigint)
+returns setof jsonb
+language plpgsql stable security definer
+set search_path = ''
+as $$
+begin
+  perform private.exigir_staff(p_club_id);
+  return query
+  select private.ocupacion_json(o) from public.ocupaciones o
+  where o.club_id = p_club_id and o.estado in ('pendiente', 'confirmada')
+    and o.pago_informado_at is not null and o.pagado < o.precio
+  order by o.pago_informado_at desc
+  limit 200;
+end;
+$$;
+
 create or replace function public.club_crear_reserva(
   p_club_id bigint,
   p_cancha_id bigint,

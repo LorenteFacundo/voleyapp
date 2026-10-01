@@ -12,7 +12,7 @@ const variantStyles = {
   danger: 'bg-red-100 text-red-800',
   court: 'bg-vb-orange-light text-orange-800',
   info: 'bg-blue-100 text-blue-900',
-  muted: 'bg-ink/5 text-ink/60',
+  muted: 'bg-ink/5 text-ink/65',
 };
 
 export function Badge({ variant = 'default', className, children, ...props }: BadgeProps) {

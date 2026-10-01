@@ -60,11 +60,11 @@ export function NotificationBell() {
         aria-expanded={abierto}
         aria-controls={panelId}
         aria-label={cantidad ? `Notificaciones (${cantidad} sin leer)` : 'Notificaciones'}
-        className="relative grid h-11 w-11 place-items-center rounded-full text-ink/70 transition hover:bg-ink/5 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vb-orange/60"
+        className="relative grid h-11 w-11 place-items-center rounded-full text-ink/70 transition hover:bg-ink/5 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vb-orange-ink"
       >
         <Bell size={21} aria-hidden="true" />
         {cantidad > 0 && (
-          <span className="absolute right-1.5 top-1.5 grid min-w-5 place-items-center rounded-full bg-vb-orange px-1 text-[11px] font-bold leading-5 text-white">
+          <span className="absolute right-1.5 top-1.5 grid min-w-5 place-items-center rounded-full bg-vb-orange-ink px-1 text-[11px] font-bold leading-5 text-white">
             {cantidad > 9 ? '9+' : cantidad}
           </span>
         )}
@@ -95,11 +95,11 @@ export function NotificationBell() {
                           className={clsx('w-full px-4 py-3 text-left transition hover:bg-ink/5', !notificacion.leida && 'bg-vb-orange-light/60')}
                         >
                           <span className="flex items-start gap-2">
-                            {!notificacion.leida && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-vb-orange" aria-label="Sin leer" />}
+                            {!notificacion.leida && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-vb-orange-ink" aria-label="Sin leer" />}
                             <span className="min-w-0">
                               <span className="block text-sm font-semibold text-ink">{notificacion.titulo}</span>
                               {notificacion.cuerpo && <span className="mt-0.5 block text-xs text-ink/65">{notificacion.cuerpo}</span>}
-                              <span className="mt-1 block text-xs text-ink/45">{formatRelativo(notificacion.created_at)}</span>
+                              <span className="mt-1 block text-xs text-ink/65">{formatRelativo(notificacion.created_at)}</span>
                             </span>
                           </span>
                         </button>

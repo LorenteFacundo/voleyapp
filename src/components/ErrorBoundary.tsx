@@ -25,7 +25,7 @@ export class ErrorBoundary extends Component<Props, State> {
             Ocurrió un error inesperado. Recargá la página para intentar de nuevo.
           </p>
           <button
-            className="mt-5 min-h-11 rounded-xl bg-vb-orange px-5 text-sm font-bold text-white hover:bg-vb-orange/90"
+            className="mt-5 min-h-11 rounded-xl bg-vb-orange-ink px-5 text-sm font-bold text-white hover:bg-orange-800"
             onClick={() => window.location.reload()}
             type="button"
           >

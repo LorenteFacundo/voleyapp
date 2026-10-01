@@ -33,8 +33,8 @@ export function AppHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-ink/10 bg-white/90 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4">
-        <Link to="/app" className="flex items-center gap-2.5 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vb-orange/60">
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-vb-orange text-white shadow-card">
+        <Link to="/app" className="flex items-center gap-2.5 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vb-orange-ink">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-vb-orange-ink text-white shadow-card">
             <Volleyball size={22} aria-hidden="true" />
           </span>
           <span className="font-display text-lg font-black tracking-tight text-vb-blue">VoleyApp</span>
@@ -47,7 +47,7 @@ export function AppHeader() {
               to={item.to}
               className={clsx(
                 'flex min-h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition',
-                estaActivo(item, pathname) ? 'bg-vb-orange-light text-vb-orange' : 'text-ink/65 hover:bg-ink/5 hover:text-ink',
+                estaActivo(item, pathname) ? 'bg-vb-orange-light text-vb-orange-ink' : 'text-ink/65 hover:bg-ink/5 hover:text-ink',
               )}
             >
               <item.icon size={17} aria-hidden="true" /> {item.label}
@@ -61,7 +61,7 @@ export function AppHeader() {
             <Link
               to="/perfil"
               aria-label="Mi perfil"
-              className="grid h-11 w-11 place-items-center rounded-full bg-vb-blue text-sm font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vb-orange/60"
+              className="grid h-11 w-11 place-items-center rounded-full bg-vb-blue text-sm font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vb-orange-ink"
             >
               {(perfil?.nombre?.trim() || session.user.email || '?').charAt(0).toUpperCase()}
             </Link>
@@ -105,12 +105,12 @@ export function BottomNav() {
               aria-current={activo ? 'page' : undefined}
               className={clsx(
                 'relative flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold transition-colors',
-                activo ? 'text-vb-orange' : 'text-ink/55 hover:text-ink',
+                activo ? 'text-vb-orange-ink' : 'text-ink/65 hover:text-ink',
               )}
             >
               <item.icon size={22} strokeWidth={activo ? 2.5 : 2} aria-hidden="true" />
               {item.label}
-              {activo && <span className="absolute top-0 h-0.5 w-8 rounded-b-full bg-vb-orange" aria-hidden="true" />}
+              {activo && <span className="absolute top-0 h-0.5 w-8 rounded-b-full bg-vb-orange-ink" aria-hidden="true" />}
             </button>
           );
         })}
@@ -145,7 +145,7 @@ export function PageTitle({ titulo, descripcion, acciones }: { titulo: ReactNode
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div className="min-w-0">
         <h1 className="font-display text-2xl font-black tracking-tight text-vb-blue sm:text-3xl">{titulo}</h1>
-        {descripcion && <p className="mt-1 text-sm text-ink/60">{descripcion}</p>}
+        {descripcion && <p className="mt-1 text-sm text-ink/65">{descripcion}</p>}
       </div>
       {acciones && <div className="flex flex-wrap gap-2">{acciones}</div>}
     </div>

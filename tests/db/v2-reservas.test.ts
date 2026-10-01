@@ -166,5 +166,17 @@ describe('modelo v2: reservas de jugadores', () => {
     expect((await notificacionesDe(db, club.dueno)).map((n) => n.tipo)).toContain('pago_informado');
     const panel = await rpc<{ pagos_informados: number }>(db, club.dueno, 'club_panel', { p_club_id: club.clubId });
     expect(panel.pagos_informados).toBeGreaterThanOrEqual(1);
+
+    // El club los ve en una lista propia, sin depender de la fecha de la reserva.
+    const informados = await rpcFilas<{ id: number }>(db, club.dueno, 'club_pagos_informados', { p_club_id: club.clubId });
+    expect(informados.map((ocupacion) => ocupacion.id)).toContain(reserva.ocupacion_id);
+    await expect(rpc(db, otro, 'club_pagos_informados', { p_club_id: club.clubId })).rejects.toThrow();
+    const [{ precio }] = await sql<{ precio: number }>(db,
+      `select precio::float8 as precio from public.ocupaciones where id = $1`, [reserva.ocupacion_id]);
+    await rpc(db, club.dueno, 'club_registrar_pago', {
+      p_club_id: club.clubId, p_monto: precio, p_medio: 'transferencia', p_ocupacion_id: reserva.ocupacion_id,
+    });
+    const cobrados = await rpcFilas<{ id: number }>(db, club.dueno, 'club_pagos_informados', { p_club_id: club.clubId });
+    expect(cobrados.map((ocupacion) => ocupacion.id)).not.toContain(reserva.ocupacion_id);
   });
 });

@@ -32,8 +32,9 @@ begin
     'canchas', (select count(*) from public.canchas where activa),
     'usuarios', (select count(*) from public.usuarios),
     'usuarios_semana', (select count(*) from public.usuarios where created_at > pg_catalog.now() - interval '7 days'),
+    -- Reservas nuevas: las fechas que generan los fijos no cuentan (un fijo crea 12 de una vez).
     'reservas_semana', (select count(*) from public.ocupaciones
-      where tipo = 'reserva' and created_at > pg_catalog.now() - interval '7 days'),
+      where tipo = 'reserva' and origen <> 'fijo' and created_at > pg_catalog.now() - interval '7 days'),
     'reservas_app_semana', (select count(*) from public.ocupaciones
       where tipo = 'reserva' and origen = 'app' and created_at > pg_catalog.now() - interval '7 days'),
     'pendientes', (select count(*) from public.ocupaciones where estado = 'pendiente' and vence_at > pg_catalog.now()),

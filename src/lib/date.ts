@@ -154,7 +154,7 @@ function fechaUTC(fecha: string): Date {
 
 /** "lunes 6 de octubre" */
 export function formatFechaLarga(fecha: string): string {
-  return formatoFechaLarga.format(fechaUTC(fecha));
+  return formatoFechaLarga.format(fechaUTC(fecha)).replace(',', '');
 }
 
 /** "lun 6 oct" */

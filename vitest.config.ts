@@ -18,6 +18,8 @@ export default defineConfig({
           environment: 'jsdom',
           include: ['src/**/*.test.{ts,tsx}'],
           setupFiles: ['tests/setup-dom.ts'],
+          // Las pruebas de pantallas completas son lentas cuando corren todas en paralelo.
+          testTimeout: 20_000,
         },
       },
       {

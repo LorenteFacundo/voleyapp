@@ -22,6 +22,7 @@ export const claves = {
   agenda: (clubId: number, desde: string, hasta: string, canceladas: boolean) =>
     ['gestion', clubId, 'agenda', desde, hasta, canceladas] as const,
   pendientes: (clubId: number) => ['gestion', clubId, 'pendientes'] as const,
+  pagosInformados: (clubId: number) => ['gestion', clubId, 'pagos-informados'] as const,
   clientes: (clubId: number, busqueda: string, archivados: boolean) =>
     ['gestion', clubId, 'clientes', busqueda, archivados] as const,
   cliente: (clienteId: number) => ['gestion', 'cliente', clienteId] as const,
@@ -32,4 +33,5 @@ export const claves = {
   equipo: (clubId: number) => ['gestion', clubId, 'equipo'] as const,
   auditoriaClub: (clubId: number) => ['gestion', clubId, 'auditoria'] as const,
   admin: ['admin'] as const,
+  invitacionClub: (token: string) => ['invitacion-club', token] as const,
 };

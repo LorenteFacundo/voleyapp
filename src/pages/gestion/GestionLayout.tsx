@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { Link, NavLink, Navigate, Outlet, useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useMemo, useRef } from 'react';
+import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   BarChart3, CalendarDays, ExternalLink, Repeat2, Settings, Users, Wallet,
 } from 'lucide-react';
@@ -10,7 +10,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { RequireAuth, SinPermiso } from '@/components/layout/Guardas';
 import { Cargando, ErrorCarga } from '@/components/ui/Estados';
 import { Badge } from '@/components/ui/Badge';
-import { GestionContext, type GestionClub } from './GestionContext';
+import { GestionContext, type GestionClub } from '@/contexts/gestion';
 
 const SECCIONES = [
   { ruta: 'agenda', label: 'Agenda', icon: CalendarDays, soloDueno: false },
@@ -25,12 +25,19 @@ function ContenidoGestion() {
   const { clubId: clubParam } = useParams<{ clubId: string }>();
   const clubId = Number(clubParam);
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const { perfil } = useAuth();
+  const navRef = useRef<HTMLElement>(null);
   const panel = useClubPanel(Number.isFinite(clubId) && clubId > 0 ? clubId : null);
 
   const contexto = useMemo<GestionClub | null>(() => panel.data
     ? { clubId, panel: panel.data, rol: panel.data.mi_rol, esDueno: panel.data.mi_rol === 'dueno' }
     : null, [clubId, panel.data]);
+
+  // En celulares el menú de secciones se desliza: la sección actual queda a la vista.
+  useEffect(() => {
+    navRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [pathname, contexto]);
 
   if (!Number.isFinite(clubId) || clubId <= 0) return <Navigate to="/gestion" replace />;
   if (panel.isPending) return <Cargando texto="Cargando el panel del club…" className="min-h-[50dvh]" />;
@@ -41,14 +48,19 @@ function ContenidoGestion() {
   }
   if (!contexto) return null;
 
-  const clubes = perfil?.clubes ?? [];
+  // La administración global puede abrir clubes de los que no es parte: el
+  // actual se agrega a la lista para que el selector lo muestre.
+  const propios = perfil?.clubes ?? [];
+  const clubes = propios.some((club) => club.id === clubId)
+    ? propios
+    : [{ id: clubId, nombre: contexto.panel.club.nombre }, ...propios];
   const secciones = SECCIONES.filter((seccion) => !seccion.soloDueno || contexto.esDueno);
 
   return (
     <GestionContext.Provider value={contexto}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-bold uppercase tracking-wide text-vb-orange">Panel del club</p>
+          <p className="text-xs font-bold uppercase tracking-wide text-vb-orange-ink">Panel del club</p>
           {clubes.length > 1 ? (
             <label className="mt-1 block">
               <span className="sr-only">Club</span>
@@ -76,7 +88,7 @@ function ContenidoGestion() {
         </div>
       </div>
 
-      <nav aria-label="Secciones del club" className="-mx-4 mb-5 overflow-x-auto px-4">
+      <nav ref={navRef} aria-label="Secciones del club" className="-mx-4 mb-5 overflow-x-auto px-4">
         <div className="flex min-w-max gap-1 rounded-2xl bg-ink/5 p-1">
           {secciones.map((seccion) => (
             <NavLink
@@ -84,13 +96,13 @@ function ContenidoGestion() {
               to={`/gestion/${clubId}/${seccion.ruta}`}
               className={({ isActive }) => clsx(
                 'flex min-h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold transition',
-                isActive ? 'bg-white text-vb-blue shadow-sm' : 'text-ink/60 hover:text-ink',
+                isActive ? 'bg-white text-vb-blue shadow-sm' : 'text-ink/65 hover:text-ink',
               )}
             >
               <seccion.icon size={16} aria-hidden="true" />
               {seccion.label}
               {seccion.ruta === 'agenda' && contexto.panel.pendientes > 0 && (
-                <span className="rounded-full bg-vb-orange px-1.5 text-xs font-bold text-white" aria-label={`${contexto.panel.pendientes} pedidos pendientes`}>
+                <span className="rounded-full bg-vb-orange-ink px-1.5 text-xs font-bold text-white" aria-label={`${contexto.panel.pendientes} pedidos pendientes`}>
                   {contexto.panel.pendientes}
                 </span>
               )}
