@@ -1,7 +1,9 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
+// Con SITIO_URL configurada, solo el sitio propio puede usar el formulario.
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': Deno.env.get('SITIO_URL')?.replace(/\/$/, '') || '*',
+  Vary: 'Origin',
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Content-Type': 'application/json',
@@ -30,9 +32,12 @@ Deno.serve(async (request) => {
   const declaredLength = Number(request.headers.get('content-length') ?? '0');
   if (declaredLength > 8_192) return json(413, { error: 'Solicitud demasiado grande' });
 
+  // El tamaño también se controla sobre el cuerpo real (puede llegar sin content-length).
+  const raw = await request.text();
+  if (raw.length > 8_192) return json(413, { error: 'Solicitud demasiado grande' });
   let body: Record<string, unknown>;
   try {
-    body = await request.json();
+    body = JSON.parse(raw);
   } catch {
     return json(400, { error: 'Solicitud inválida' });
   }
@@ -68,8 +73,8 @@ Deno.serve(async (request) => {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
   const addressHash = await sha256(`${rateLimitSalt}:${clientIp}`);
-  const { data: allowed, error: rateError } = await supabase.rpc('pilot_registrar_intento_captacion', {
-    p_hash: addressHash,
+  const { data: allowed, error: rateError } = await supabase.rpc('captacion_registrar_intento', {
+    p_huella: addressHash,
   });
   if (rateError) {
     console.error('submit-club-lead rate limiter failed');

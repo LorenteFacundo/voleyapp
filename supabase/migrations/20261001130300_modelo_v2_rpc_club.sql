@@ -62,17 +62,21 @@ as $$
   )
 $$;
 
--- Saldo de un cliente: pagos registrados menos reservas confirmadas que ya
--- empezaron. Negativo = debe; positivo = saldo a favor.
+-- Saldo de un cliente: lo cobrado en sus reservas (aunque se hayan cargado
+-- antes de asignarle el cliente) más los pagos a cuenta, menos las reservas
+-- confirmadas que ya empezaron. Negativo = debe; positivo = saldo a favor.
+-- Las reservas traídas del sistema anterior no generan deuda (no tenía cobros).
 create or replace function private.saldo_cliente(p_cliente_id bigint)
 returns numeric
 language sql stable
 set search_path = ''
 as $$
   select coalesce((select sum(p.monto) from public.pagos p
-                   where p.cliente_id = p_cliente_id and p.anulado_at is null), 0)
+                   where p.cliente_id = p_cliente_id and p.ocupacion_id is null and p.anulado_at is null), 0)
+       + coalesce((select sum(o.pagado) from public.ocupaciones o
+                   where o.cliente_id = p_cliente_id and o.legado_turno_id is null), 0)
        - coalesce((select sum(o.precio) from public.ocupaciones o
-                   where o.cliente_id = p_cliente_id and o.tipo = 'reserva'
+                   where o.cliente_id = p_cliente_id and o.tipo = 'reserva' and o.legado_turno_id is null
                      and o.estado = 'confirmada' and o.inicio <= pg_catalog.now()), 0)
 $$;
 
@@ -169,7 +173,7 @@ begin
         '/partido/' || v_partido.id, cl.id, o.id, v_partido.id, true);
     end loop;
   end loop;
-  if o.tipo = 'reserva' and o.usuario_id is not null and o.serie_id is null then
+  if o.tipo = 'reserva' and o.usuario_id is not null then
     perform private.notificar(o.usuario_id, 'reserva_cancelada_club',
       cl.nombre || ' canceló tu reserva del ' || private.fecha_legible(o.inicio),
       coalesce('Motivo: ' || p_motivo || '. ', '')
@@ -512,6 +516,7 @@ declare
   ca public.canchas%rowtype;
   cl public.clubes%rowtype;
   v_antes jsonb;
+  r record;
 begin
   select * into o from public.ocupaciones where id = p_ocupacion_id for update;
   if not found then raise exception 'Reserva no encontrada' using errcode = 'P0002'; end if;
@@ -521,6 +526,9 @@ begin
   if not found then raise exception 'La cancha no pertenece a este club'; end if;
   perform private.validar_periodo(p_inicio, p_fin,
     case when o.tipo = 'bloqueo' then interval '7 days' else interval '12 hours' end);
+  if p_inicio < pg_catalog.now() - interval '30 days' or p_inicio > pg_catalog.now() + interval '400 days' then
+    raise exception 'La fecha está fuera del rango permitido';
+  end if;
   v_antes := jsonb_build_object('cancha_id', o.cancha_id, 'inicio', o.inicio, 'fin', o.fin);
   perform private.expirar_vencidas(o.club_id);
   begin
@@ -529,11 +537,24 @@ begin
   exception when exclusion_violation then
     raise exception 'Se superpone con otra reserva o bloqueo en esa cancha';
   end;
-  if o.tipo = 'reserva' and o.usuario_id is not null then
+  if o.tipo = 'reserva' then
     select * into cl from public.clubes where id = o.club_id;
-    perform private.notificar(o.usuario_id, 'reserva_movida', cl.nombre || ' cambió el horario de tu reserva',
-      'Ahora es ' || ca.titulo || ' · ' || private.fecha_legible(o.inicio) || '.', '/mis-reservas',
-      cl.id, o.id, null, true);
+    -- Avisa a quien reservó y a quienes se anotaron al partido de esa cancha.
+    for r in
+      select distinct x.usuario_id from (
+        select o.usuario_id
+        union all
+        select pp.usuario_id from public.partidos pa
+        join public.participantes_partido pp on pp.partido_id = pa.id
+        where pa.ocupacion_id = o.id and pa.estado_partido not in ('cancelado', 'finalizado')
+          and pp.estado_inscripcion in ('confirmado', 'pendiente_aprobacion')
+      ) x where x.usuario_id is not null
+    loop
+      perform private.notificar(r.usuario_id, 'reserva_movida', cl.nombre || ' cambió el horario de una reserva',
+        'Ahora es ' || ca.titulo || ' · ' || private.fecha_legible(o.inicio) || '.',
+        coalesce((select '/partido/' || pa.id from public.partidos pa where pa.ocupacion_id = o.id), '/mis-reservas'),
+        cl.id, o.id, null, true);
+    end loop;
   end if;
   perform private.auditar(o.club_id, 'reserva.mover', 'ocupacion', o.id::text,
     jsonb_build_object('antes', v_antes, 'despues',
@@ -592,6 +613,10 @@ begin
       cliente_id = o.cliente_id, usuario_id = o.usuario_id
   where id = o.id
   returning * into o;
+  -- Los cobros de la reserva acompañan al cliente asignado.
+  if p_cambios ? 'cliente_id' then
+    update public.pagos set cliente_id = o.cliente_id where ocupacion_id = o.id;
+  end if;
   perform private.auditar(o.club_id, 'reserva.editar', 'ocupacion', o.id::text, p_cambios);
   return private.ocupacion_json(o);
 end;
@@ -736,7 +761,7 @@ begin
       from (
         select jsonb_build_object('cliente', private.cliente_json(c), 'saldo', private.saldo_cliente(c.id),
           'impagas', (select count(*) from public.ocupaciones o
-            where o.cliente_id = c.id and o.tipo = 'reserva' and o.estado = 'confirmada'
+            where o.cliente_id = c.id and o.tipo = 'reserva' and o.estado = 'confirmada' and o.legado_turno_id is null
               and o.inicio <= pg_catalog.now() and o.pagado < o.precio)) as fila,
           private.saldo_cliente(c.id) as saldo
         from public.clientes_club c
@@ -747,7 +772,7 @@ begin
       select jsonb_agg(private.ocupacion_json(o) order by o.inicio desc)
       from public.ocupaciones o
       where o.club_id = p_club_id and o.cliente_id is null and o.tipo = 'reserva' and o.estado = 'confirmada'
-        and o.inicio <= pg_catalog.now() and o.pagado < o.precio
+        and o.legado_turno_id is null and o.inicio <= pg_catalog.now() and o.pagado < o.precio
         and o.inicio > pg_catalog.now() - interval '120 days'
     ), '[]'::jsonb)
   );
@@ -1052,6 +1077,7 @@ as $$
 declare
   s public.series%rowtype;
   v_titulo text;
+  v_hasta date;
   v_nueva bigint;
   v_conflictos text;
   v_canceladas integer;
@@ -1060,27 +1086,32 @@ begin
   select * into s from public.series where id = p_serie_id for update;
   if not found then raise exception 'Fijo no encontrado' using errcode = 'P0002'; end if;
   perform private.exigir_staff(s.club_id);
+  if not s.activa or (s.hasta is not null and s.hasta < private.hoy_ar()) then
+    raise exception 'Este fijo ya terminó: creá uno nuevo';
+  end if;
   if p_desde_fecha is null or p_desde_fecha < private.hoy_ar() then
     raise exception 'Los cambios aplican desde hoy en adelante';
   end if;
   if not exists (select 1 from public.canchas where id = p_cancha_id and club_id = s.club_id) then
     raise exception 'La cancha no pertenece a este club';
   end if;
-  perform private.validar_serie(p_dia_semana, p_hora_inicio, p_duracion_min, p_desde_fecha, p_hasta, p_precio);
+  -- Sin fecha de fin explícita, se conserva la que ya tenía el fijo.
+  v_hasta := coalesce(p_hasta, s.hasta);
+  perform private.validar_serie(p_dia_semana, p_hora_inicio, p_duracion_min, p_desde_fecha, v_hasta, p_precio);
   v_titulo := coalesce(private.texto(p_titulo, 'El nombre del fijo', 0, 120), s.titulo);
 
   if p_cancha_id = s.cancha_id and p_dia_semana = s.dia_semana and p_hora_inicio = s.hora_inicio
      and p_duracion_min = s.duracion_min then
     update public.series
-    set precio = round(p_precio, 2), titulo = v_titulo, hasta = p_hasta
+    set precio = round(p_precio, 2), titulo = v_titulo, hasta = v_hasta
     where id = s.id;
     update public.ocupaciones
     set precio = round(p_precio, 2), titulo = v_titulo
     where serie_id = s.id and estado = 'confirmada' and pagado = 0
-      and inicio >= private.instante_ar(p_desde_fecha, time '00:00');
+      and inicio >= greatest(private.instante_ar(p_desde_fecha, time '00:00'), pg_catalog.now());
     v_canceladas := 0;
-    if p_hasta is not null then
-      v_canceladas := private.cancelar_fechas_serie(s.id, p_hasta + 1, 'Fin del fijo');
+    if v_hasta is not null then
+      v_canceladas := private.cancelar_fechas_serie(s.id, v_hasta + 1, 'Fin del fijo');
     end if;
     v_resultado := private.materializar_serie(s.id);
     perform private.auditar(s.club_id, 'fijo.editar', 'serie', s.id::text,
@@ -1092,7 +1123,7 @@ begin
   if not coalesce(p_omitir_conflictos, false) then
     select string_agg(pg_catalog.to_char(x.fecha, 'DD/MM'), ', ' order by x.fecha) into v_conflictos
     from private.conflictos_serie(p_cancha_id, p_dia_semana, p_hora_inicio, p_duracion_min,
-      p_desde_fecha, p_hasta, s.id) x;
+      p_desde_fecha, v_hasta, s.id) x;
     if v_conflictos is not null then
       raise exception 'La cancha ya está ocupada el %. Podés omitir esas fechas o elegir otro horario.', v_conflictos;
     end if;
@@ -1102,12 +1133,12 @@ begin
   if p_desde_fecha <= s.desde then
     update public.series set activa = false where id = s.id;
   else
-    update public.series set hasta = p_desde_fecha - 1 where id = s.id;
+    update public.series set hasta = least(coalesce(hasta, p_desde_fecha - 1), p_desde_fecha - 1) where id = s.id;
   end if;
   insert into public.series (club_id, cancha_id, cliente_id, titulo, dia_semana, hora_inicio, duracion_min,
     desde, hasta, precio, notas, creada_por)
   values (s.club_id, p_cancha_id, s.cliente_id, v_titulo, p_dia_semana, p_hora_inicio, p_duracion_min,
-    p_desde_fecha, p_hasta, round(p_precio, 2), s.notas, auth.uid())
+    p_desde_fecha, v_hasta, round(p_precio, 2), s.notas, auth.uid())
   returning id into v_nueva;
   v_resultado := private.materializar_serie(v_nueva);
   perform private.auditar(s.club_id, 'fijo.reprogramar', 'serie', s.id::text,
@@ -1128,6 +1159,7 @@ begin
   select * into s from public.series where id = p_serie_id for update;
   if not found then raise exception 'Fijo no encontrado' using errcode = 'P0002'; end if;
   perform private.exigir_staff(s.club_id);
+  if not s.activa then raise exception 'Este fijo ya estaba terminado'; end if;
   if p_desde_fecha is null or p_desde_fecha < private.hoy_ar() then
     raise exception 'El fijo puede terminar desde hoy en adelante';
   end if;
@@ -1135,7 +1167,8 @@ begin
   if p_desde_fecha <= s.desde then
     update public.series set activa = false where id = s.id;
   else
-    update public.series set hasta = p_desde_fecha - 1 where id = s.id;
+    -- Nunca extiende un fijo: solo puede adelantar su fin.
+    update public.series set hasta = least(coalesce(hasta, p_desde_fecha - 1), p_desde_fecha - 1) where id = s.id;
   end if;
   perform private.auditar(s.club_id, 'fijo.finalizar', 'serie', s.id::text,
     jsonb_build_object('desde', p_desde_fecha, 'canceladas', v_canceladas));
@@ -1263,9 +1296,11 @@ begin
     raise exception 'Superficie inválida';
   end if;
   if cardinality(coalesce(p_fotos, '{}')) > 8 then raise exception 'Podés cargar hasta 8 fotos'; end if;
+  -- Solo fotos del Storage del proyecto (Supabase o el entorno local), en la
+  -- carpeta del club: nada de imágenes de terceros que puedan rastrear visitas.
   foreach v_foto in array coalesce(p_fotos, '{}') loop
-    if v_foto !~ ('^https://[A-Za-z0-9.-]+(:[0-9]+)?/storage/v1/object/public/canchas-fotos/club-' || p_club_id
-        || '/[A-Za-z0-9._-]{1,120}$') then
+    if v_foto !~ ('^(https://[a-z0-9-]+\.supabase\.co|http://(localhost|127\.0\.0\.1):[0-9]{2,5})'
+        || '/storage/v1/object/public/canchas-fotos/club-' || p_club_id || '/[A-Za-z0-9._-]{1,120}$') then
       raise exception 'Las fotos deben subirse desde el panel del club';
     end if;
   end loop;
@@ -1459,6 +1494,8 @@ as $$
 declare v_actual text;
 begin
   perform private.exigir_staff(p_club_id, true);
+  -- Bloquea a los dueños para que dos cambios simultáneos no dejen al club sin ninguno.
+  perform 1 from public.club_miembros where club_id = p_club_id and rol = 'dueno' for update;
   select rol into v_actual from public.club_miembros where club_id = p_club_id and user_id = p_user_id for update;
   if not found then raise exception 'Esa persona no es parte del equipo'; end if;
   if p_rol is not null and p_rol not in ('dueno', 'encargado') then raise exception 'Rol inválido'; end if;
@@ -1505,6 +1542,10 @@ begin
   end if;
   perform private.validar_periodo(p_inicio, p_fin, interval '12 hours');
   if p_inicio <= pg_catalog.now() then raise exception 'El partido tiene que ser en el futuro'; end if;
+  if p_inicio > pg_catalog.now() + interval '400 days' then raise exception 'La fecha está fuera del rango permitido'; end if;
+  if p_cupo_minimo is null or p_cupo_maximo is null or p_nivel is null then
+    raise exception 'Completá todos los datos del partido';
+  end if;
   if p_cupo_minimo < 2 or p_cupo_maximo < p_cupo_minimo or p_cupo_maximo > 22 then
     raise exception 'El cupo debe ser de 2 a 22 jugadores y el máximo no puede ser menor al mínimo';
   end if;

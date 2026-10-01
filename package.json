@@ -16,7 +16,9 @@
     "lint": "eslint . && tsc -b --pretty false",
     "test:unit": "vitest run --project unit",
     "test:db": "vitest run --project db",
-    "typecheck": "tsc -b --pretty false"
+    "typecheck": "tsc -b --pretty false",
+    "supabase:local": "node --experimental-strip-types --no-warnings=ExperimentalWarning scripts/supabase-local/servidor.ts",
+    "dev:local": "node scripts/dev-local.mjs"
   },
   "keywords": [],
   "author": "",

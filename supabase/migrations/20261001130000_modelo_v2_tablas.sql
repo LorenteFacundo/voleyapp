@@ -65,9 +65,14 @@ alter table public.usuarios
   add column if not exists telefono text,
   add column if not exists updated_at timestamptz not null default now();
 
+-- Nombres limpios (sin saltos de línea ni controles). Si falta, "Jugador":
+-- nunca se publica la parte local del email como nombre.
 update public.usuarios
-set nombre_completo = split_part(email, '@', 1)
-where nombre_completo is null or btrim(nombre_completo) = '';
+set nombre_completo = left(btrim(regexp_replace(nombre_completo, '[\s\x01-\x1f\x7f]+', ' ', 'g')), 80)
+where nombre_completo ~ '[\x01-\x1f\x7f]' or nombre_completo <> btrim(nombre_completo) or length(nombre_completo) > 80;
+update public.usuarios
+set nombre_completo = 'Jugador'
+where nombre_completo is null or length(btrim(nombre_completo)) < 2;
 update public.usuarios set puntos_total = 0 where puntos_total is null;
 update public.usuarios set partidos_jugados = 0 where partidos_jugados is null;
 
@@ -122,9 +127,13 @@ end $$;
 -- Los clubes existentes ya estaban visibles en la app.
 update public.clubes set publicado = true where slug is null;
 
+-- Datos existentes normalizados antes de agregar restricciones.
+update public.clubes set nombre = left(btrim(nombre), 120) where length(btrim(nombre)) > 120 or nombre <> btrim(nombre);
+update public.clubes set nombre = 'Club ' || id where length(btrim(coalesce(nombre, ''))) < 2;
+
 update public.clubes c
 set slug = case
-  when length(private.slugificar(c.nombre)) >= 3 then private.slugificar(c.nombre)
+  when length(rtrim(left(private.slugificar(c.nombre), 50), '-')) >= 3 then rtrim(left(private.slugificar(c.nombre), 50), '-')
   else 'club-' || c.id
 end
 where c.slug is null;
@@ -170,6 +179,11 @@ alter table public.canchas
   add column if not exists updated_at timestamptz not null default now();
 
 update public.canchas set fotos = '{}' where fotos is null;
+update public.canchas set titulo = left(btrim(titulo), 80) where length(btrim(titulo)) > 80 or titulo <> btrim(titulo);
+update public.canchas set titulo = btrim('Cancha ' || coalesce(btrim(titulo), '')) where length(btrim(coalesce(titulo, ''))) < 2;
+update public.canchas set descripcion = left(descripcion, 1000) where length(descripcion) > 1000;
+update public.canchas set precio_total = greatest(precio_total, 0), precio_sena = greatest(precio_sena, 0)
+where precio_total < 0 or precio_sena < 0;
 
 alter table public.canchas
   add constraint canchas_superficie check (superficie is null or superficie in ('parquet', 'sintetico', 'cemento', 'arena', 'otro')),
@@ -201,7 +215,7 @@ create trigger canchas_actualizado before update on public.canchas
 update public.horarios_semanales set activo = true where activo is null;
 update public.horarios_semanales set precio_sena = 0 where precio_sena is null;
 update public.horarios_semanales set precio_sena = precio_total where precio_sena > precio_total;
-delete from public.horarios_semanales where cancha_id is null;
+delete from public.horarios_semanales where cancha_id is null or hora_inicio = hora_fin;
 
 alter table public.horarios_semanales
   alter column activo set not null,
@@ -324,6 +338,8 @@ create table public.ocupaciones (
   usuario_id uuid references public.usuarios(id) on delete set null,
   cliente_id bigint,
   serie_id bigint,
+  -- Fecha de la serie a la que corresponde (no cambia si la fecha se mueve).
+  serie_fecha date,
   titulo text check (length(titulo) <= 120),
   precio numeric(12, 2) not null default 0 check (precio >= 0),
   sena numeric(12, 2) not null default 0 check (sena >= 0),
@@ -345,6 +361,7 @@ create table public.ocupaciones (
   constraint ocupaciones_rango check (fin > inicio and fin - inicio <= case
     when tipo = 'bloqueo' then interval '7 days' else interval '12 hours' end),
   constraint ocupaciones_pendiente_vence check (estado <> 'pendiente' or vence_at is not null),
+  constraint ocupaciones_serie_fecha check (serie_id is null or serie_fecha is not null),
   unique (id, club_id),
   foreign key (cancha_id, club_id) references public.canchas (id, club_id),
   foreign key (cliente_id, club_id) references public.clientes_club (id, club_id) on delete set null (cliente_id),
@@ -354,7 +371,8 @@ create table public.ocupaciones (
     tstzrange(inicio, fin, '[)') with &&
   ) where (estado in ('pendiente', 'confirmada'))
 );
-create unique index ocupaciones_serie_inicio on public.ocupaciones (serie_id, inicio) where serie_id is not null;
+-- Una fecha de un fijo existe una sola vez aunque se la mueva de horario.
+create unique index ocupaciones_serie_fecha on public.ocupaciones (serie_id, serie_fecha) where serie_id is not null;
 create index ocupaciones_club_inicio on public.ocupaciones (club_id, inicio);
 create index ocupaciones_usuario on public.ocupaciones (usuario_id, inicio desc) where usuario_id is not null;
 create index ocupaciones_cliente on public.ocupaciones (cliente_id) where cliente_id is not null;
@@ -439,12 +457,28 @@ alter table public.partidos
   add column if not exists precio_por_jugador numeric(12, 2),
   add column if not exists cancelado_at timestamptz,
   add column if not exists finalizado_at timestamptz,
+  add column if not exists minimo_avisado_at timestamptz,
   add column if not exists created_at timestamptz not null default now(),
   add column if not exists updated_at timestamptz not null default now();
 
 create unique index if not exists partidos_ocupacion_unica on public.partidos (ocupacion_id) where ocupacion_id is not null;
 
+-- Valores existentes completados y acotados antes de exigirlos.
+update public.partidos set cupo_minimo = 12 where cupo_minimo is null;
+update public.partidos set cupo_maximo = greatest(cupo_minimo, 18) where cupo_maximo is null;
+update public.partidos set visibilidad = 'publico' where visibilidad is null;
+update public.partidos set nivel_requerido = 'recreativo' where nivel_requerido is null;
+update public.partidos set estado_partido = 'borrador' where estado_partido is null;
 update public.partidos set cantidad_invitados_anonimos = 0 where cantidad_invitados_anonimos is null;
+update public.partidos set cantidad_invitados_anonimos = greatest(0, least(cantidad_invitados_anonimos, cupo_maximo - 1))
+where cantidad_invitados_anonimos < 0 or cantidad_invitados_anonimos >= cupo_maximo;
+alter table public.partidos
+  alter column cupo_minimo set not null,
+  alter column cupo_maximo set not null,
+  alter column visibilidad set not null,
+  alter column nivel_requerido set not null,
+  alter column estado_partido set not null,
+  alter column cantidad_invitados_anonimos set not null;
 
 select private.quitar_checks_columna('public.partidos'::regclass, 'estado_partido');
 alter table public.partidos

@@ -249,7 +249,7 @@ begin
   select * into ca from public.canchas where id = o.cancha_id;
   select * into cl from public.clubes where id = o.club_id;
 
-  v_soy_org := v_uid is not null and pa.organizador_id = v_uid;
+  v_soy_org := v_uid is not null and private.gestiona_partido(pa);
   select pp.estado_inscripcion into v_mi_estado
   from public.participantes_partido pp where pp.partido_id = pa.id and pp.usuario_id = v_uid;
   v_staff := private.rol_en_club(o.club_id) is not null;
@@ -482,9 +482,21 @@ begin
   if p_fecha > private.hoy_ar() + cl.ventana_reserva_dias then
     raise exception 'Este club recibe pedidos hasta % días antes', cl.ventana_reserva_dias;
   end if;
+  -- Los pedidos de una misma persona se serializan: los límites no se pueden
+  -- saltear con solicitudes en paralelo.
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_uid::text, 0));
   if (select count(*) from public.ocupaciones o
       where o.usuario_id = v_uid and o.estado = 'pendiente' and o.vence_at > pg_catalog.now()) >= 3 then
     raise exception 'Ya tenés 3 pedidos esperando respuesta. Esperá a que los clubes respondan.';
+  end if;
+  if (select count(*) from public.ocupaciones o
+      where o.usuario_id = v_uid and o.origen = 'app' and o.inicio > pg_catalog.now()
+        and (o.estado = 'confirmada' or (o.estado = 'pendiente' and o.vence_at > pg_catalog.now()))) >= 4 then
+    raise exception 'Ya tenés 4 reservas activas pedidas desde la app. Cuando juegues o canceles alguna, podés pedir otra.';
+  end if;
+  if (select count(*) from public.ocupaciones o
+      where o.usuario_id = v_uid and o.origen = 'app' and o.created_at > pg_catalog.now() - interval '24 hours') >= 8 then
+    raise exception 'Hiciste muchos pedidos en las últimas 24 horas. Probá de nuevo más tarde.';
   end if;
   v_nota := private.texto(p_nota, 'La nota', 0, 300, true);
 
@@ -635,6 +647,8 @@ begin
   select * into o from public.ocupaciones where id = p_ocupacion_id and usuario_id = v_uid for update;
   if not found then raise exception 'Reserva no encontrada' using errcode = 'P0002'; end if;
   if o.estado not in ('pendiente', 'confirmada') then raise exception 'La reserva ya no está activa'; end if;
+  -- Un aviso cada 30 minutos como máximo.
+  if o.pago_informado_at > pg_catalog.now() - interval '30 minutes' then return; end if;
   update public.ocupaciones set pago_informado_at = pg_catalog.now() where id = o.id;
   select private.nombre_visible(u.nombre_completo, u.email) into v_nombre from public.usuarios u where u.id = v_uid;
   perform private.notificar_staff(o.club_id, 'pago_informado',
@@ -711,7 +725,7 @@ begin
   -- El bloqueo de la fila serializa inscripciones simultáneas al mismo partido.
   select * into pa from public.partidos where id = p_partido_id for update;
   if not found then raise exception 'Partido no encontrado' using errcode = 'P0002'; end if;
-  if pa.visibilidad <> 'publico'
+  if pa.visibilidad is distinct from 'publico'
      and (pa.token_invitacion is null or p_token is null or p_token <> pa.token_invitacion) then
     raise exception 'Partido no encontrado' using errcode = 'P0002';
   end if;
@@ -739,13 +753,15 @@ begin
   insert into public.participantes_partido (partido_id, usuario_id, estado_inscripcion)
   values (pa.id, v_uid, v_estado);
 
-  perform private.notificar(pa.organizador_id,
+  perform private.notificar_gestion_partido(pa,
     case when v_estado = 'confirmado' then 'nueva_inscripcion' else 'solicitud_inscripcion' end,
-    case when v_estado = 'confirmado' then v_nombre || ' se sumó a tu partido'
-      else v_nombre || ' quiere sumarse a tu partido' end,
-    null, '/partido/' || pa.id, o.club_id, o.id, pa.id, false);
+    case when v_estado = 'confirmado' then v_nombre || ' se sumó al partido del ' || private.fecha_legible(o.inicio)
+      else v_nombre || ' quiere sumarse al partido del ' || private.fecha_legible(o.inicio) end,
+    null, false);
 
-  if v_estado = 'confirmado' and v_ocupados + 1 = pa.cupo_minimo then
+  -- El aviso de "ya hay mínimo" sale una sola vez por partido.
+  if v_estado = 'confirmado' and v_ocupados + 1 >= pa.cupo_minimo and pa.minimo_avisado_at is null then
+    update public.partidos set minimo_avisado_at = pg_catalog.now() where id = pa.id;
     for r in
       select pp.usuario_id from public.participantes_partido pp
       where pp.partido_id = pa.id and pp.estado_inscripcion = 'confirmado'
@@ -770,15 +786,14 @@ declare
 begin
   select * into pa from public.partidos where id = p_partido_id for update;
   if not found then raise exception 'Partido no encontrado' using errcode = 'P0002'; end if;
-  if pa.organizador_id = v_uid then
+  if pa.club_id is null and pa.organizador_id = v_uid then
     raise exception 'Organizás este partido: transferí la organización o cancelalo.';
   end if;
   delete from public.participantes_partido
   where partido_id = pa.id and usuario_id = v_uid and estado_inscripcion <> 'rechazado';
   if not found then raise exception 'No estás anotado en este partido'; end if;
-  select private.nombre_visible(u.nombre_completo, u.email) into v_nombre from public.usuarios u where u.id = v_uid;
-  perform private.notificar(pa.organizador_id, 'baja_partido', v_nombre || ' se bajó de tu partido',
-    null, '/partido/' || pa.id, null, pa.ocupacion_id, pa.id, false);
+  select private.nombre_visible(u.nombre_completo, null) into v_nombre from public.usuarios u where u.id = v_uid;
+  perform private.notificar_gestion_partido(pa, 'baja_partido', v_nombre || ' se bajó del partido', null, false);
 end;
 $$;
 
@@ -795,7 +810,7 @@ begin
   select * into pa from public.partidos where id = p_partido_id for update;
   if not found then raise exception 'Partido no encontrado' using errcode = 'P0002'; end if;
   select * into o from public.ocupaciones where id = pa.ocupacion_id;
-  if pa.organizador_id is distinct from v_uid and private.rol_en_club(o.club_id) is null then
+  if not private.gestiona_partido(pa) then
     raise exception 'Solo quien organiza puede aprobar inscripciones' using errcode = '42501';
   end if;
   update public.participantes_partido
@@ -861,10 +876,14 @@ declare
 begin
   select * into pa from public.partidos where id = p_partido_id for update;
   if not found then raise exception 'Partido no encontrado' using errcode = 'P0002'; end if;
-  if pa.organizador_id is distinct from v_uid then
+  if not private.gestiona_partido(pa) then
     raise exception 'Solo quien organiza puede editar el partido' using errcode = '42501';
   end if;
   if pa.estado_partido not in ('borrador', 'abierto', 'confirmado') then raise exception 'El partido ya no está activo'; end if;
+  if p_cupo_minimo is null or p_cupo_maximo is null or p_invitados is null or p_nivel is null
+     or p_visibilidad is null or p_requiere_aprobacion is null then
+    raise exception 'Completá todos los datos del partido';
+  end if;
   if p_cupo_minimo < 2 or p_cupo_maximo < p_cupo_minimo or p_cupo_maximo > 22 then
     raise exception 'El cupo debe ser de 2 a 22 jugadores y el máximo no puede ser menor al mínimo';
   end if;
@@ -881,7 +900,10 @@ begin
   set cupo_minimo = p_cupo_minimo, cupo_maximo = p_cupo_maximo, cantidad_invitados_anonimos = p_invitados,
       nivel_requerido = p_nivel, visibilidad = p_visibilidad, requiere_aprobacion = p_requiere_aprobacion,
       descripcion = private.texto(p_descripcion, 'La descripción', 0, 500, true),
-      precio_por_jugador = p_precio_por_jugador
+      precio_por_jugador = p_precio_por_jugador,
+      -- Al pasar de público a "solo con enlace" el enlace anterior deja de servir.
+      token_invitacion = case when pa.visibilidad = 'publico' and p_visibilidad <> 'publico'
+        then encode(extensions.gen_random_bytes(16), 'hex') else token_invitacion end
   where id = pa.id;
 end;
 $$;
@@ -903,7 +925,7 @@ begin
   if not found then raise exception 'Partido no encontrado' using errcode = 'P0002'; end if;
   select * into o from public.ocupaciones where id = pa.ocupacion_id for update;
   select * into cl from public.clubes where id = o.club_id;
-  if pa.organizador_id is distinct from v_uid and private.rol_en_club(o.club_id) is null then
+  if not private.gestiona_partido(pa) then
     raise exception 'Solo quien organiza puede cancelar el partido' using errcode = '42501';
   end if;
   if pa.estado_partido in ('cancelado', 'finalizado') then raise exception 'El partido ya no está activo'; end if;
@@ -943,7 +965,7 @@ as $$
     'inicio', o.inicio,
     'fin', o.fin,
     'estado_reserva', o.estado,
-    'soy_organizador', pa.organizador_id = (select auth.uid()),
+    'soy_organizador', pa.club_id is null and pa.organizador_id = (select auth.uid()),
     'mi_estado', pp.estado_inscripcion,
     'club', jsonb_build_object('id', cl.id, 'nombre', cl.nombre, 'slug', cl.slug, 'zona', cl.zona),
     'cancha', jsonb_build_object('id', ca.id, 'titulo', ca.titulo)
@@ -953,7 +975,8 @@ as $$
   join public.clubes cl on cl.id = o.club_id
   join public.canchas ca on ca.id = o.cancha_id
   left join public.participantes_partido pp on pp.partido_id = pa.id and pp.usuario_id = (select auth.uid())
-  where (pa.organizador_id = (select auth.uid()) or pp.usuario_id is not null)
+  -- Los partidos que publica un club se gestionan desde su agenda, no acá.
+  where ((pa.club_id is null and pa.organizador_id = (select auth.uid())) or pp.usuario_id is not null)
     and o.fin > pg_catalog.now() - interval '30 days'
   order by o.inicio desc
   limit 100
@@ -972,7 +995,7 @@ declare
 begin
   if not exists (
     select 1 from public.partidos pa
-    where pa.id = p_partido_id and (pa.organizador_id = v_uid or exists (
+    where pa.id = p_partido_id and (private.gestiona_partido(pa) or exists (
       select 1 from public.participantes_partido pp
       where pp.partido_id = pa.id and pp.usuario_id = v_uid and pp.estado_inscripcion = 'confirmado'))
   ) then
@@ -999,7 +1022,7 @@ begin
   if not exists (
     select 1 from public.partidos pa
     left join public.ocupaciones o on o.id = pa.ocupacion_id
-    where pa.id = p_partido_id and (pa.organizador_id = v_uid
+    where pa.id = p_partido_id and (private.gestiona_partido(pa)
       or private.rol_en_club(o.club_id) is not null
       or exists (select 1 from public.participantes_partido pp
         where pp.partido_id = pa.id and pp.usuario_id = v_uid and pp.estado_inscripcion = 'confirmado'))
@@ -1095,6 +1118,9 @@ begin
   select u.email into v_email from public.usuarios u where u.id = v_uid;
   if lower(coalesce(v_email, '')) <> lower(inv.email) then
     raise exception 'Esta invitación es para otra dirección de email. Ingresá con la cuenta invitada.' using errcode = '42501';
+  end if;
+  if not exists (select 1 from auth.users au where au.id = v_uid and au.email_confirmed_at is not null) then
+    raise exception 'Confirmá tu email antes de aceptar la invitación' using errcode = '42501';
   end if;
   insert into public.club_miembros (club_id, user_id, rol, created_by)
   values (inv.club_id, v_uid, inv.rol, inv.creada_por)

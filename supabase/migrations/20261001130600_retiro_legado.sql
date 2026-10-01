@@ -99,11 +99,63 @@ revoke all on public.solicitudes_club from public, anon, authenticated;
 grant select on public.solicitudes_club to authenticated;
 grant update (estado, notas) on public.solicitudes_club to authenticated;
 
--- Objetos nuevos en public quedan cerrados por defecto: cada tabla o función
--- expuesta necesita un GRANT explícito (ver docs/arquitectura.md).
+-- Objetos nuevos quedan cerrados por defecto: cada tabla o función expuesta
+-- necesita un GRANT explícito (ver docs/arquitectura.md). El EXECUTE que
+-- Postgres da a PUBLIC en toda función nueva solo se quita de forma global.
 alter default privileges for role postgres in schema public revoke all on tables from anon, authenticated;
 alter default privileges for role postgres in schema public revoke all on sequences from anon, authenticated;
 alter default privileges for role postgres in schema public revoke all on functions from anon, authenticated;
+alter default privileges for role postgres revoke execute on functions from public;
+
+-- Ninguna vista de public queda expuesta (incluidas las creadas desde el panel).
+do $$
+declare v record;
+begin
+  for v in
+    select c.oid::regclass as vista from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relkind in ('v', 'm')
+      and not exists (select 1 from pg_depend d where d.objid = c.oid and d.deptype = 'e')
+  loop
+    execute format('revoke all on %s from public, anon, authenticated', v.vista);
+  end loop;
+end $$;
+
+-- PostGIS quedó instalado en public y sus funciones eran ejecutables por
+-- cualquiera. El modelo v2 no lo usa desde la API: se cierra el acceso. Si el
+-- dueño de la extensión es otro rol, el ajuste se hace desde el panel.
+do $$
+declare
+  f record;
+  v_omitidos integer := 0;
+begin
+  for f in
+    select p.oid::regprocedure as firma from pg_proc p
+    join pg_depend d on d.objid = p.oid and d.deptype = 'e'
+    join pg_extension e on e.oid = d.refobjid
+    where e.extname = 'postgis'
+  loop
+    begin
+      execute format('revoke execute on function %s from public, anon, authenticated', f.firma);
+    exception when others then
+      v_omitidos := v_omitidos + 1;
+    end;
+  end loop;
+  for f in
+    select c.oid::regclass as firma from pg_class c
+    join pg_depend d on d.objid = c.oid and d.deptype = 'e'
+    join pg_extension e on e.oid = d.refobjid
+    where e.extname = 'postgis' and c.relkind in ('r', 'v')
+  loop
+    begin
+      execute format('revoke all on %s from public, anon, authenticated', f.firma);
+    exception when others then
+      v_omitidos := v_omitidos + 1;
+    end;
+  end loop;
+  if v_omitidos > 0 then
+    raise notice 'PostGIS: % objetos no se pudieron ajustar (otro dueño).', v_omitidos;
+  end if;
+end $$;
 
 -- Las secuencias existentes no se usan desde la API.
 do $$

@@ -96,10 +96,10 @@ begin
   perform private.exigir_admin_global();
   v_nombre := private.texto(p_nombre, 'El nombre del club', 2, 120);
   if (p_latitud is null) <> (p_longitud is null) then raise exception 'Indicá latitud y longitud juntas'; end if;
-  v_slug := private.slugificar(v_nombre);
-  if length(v_slug) < 3 then v_slug := 'club-' || v_slug; end if;
+  v_slug := rtrim(left(private.slugificar(v_nombre), 50), '-');
+  if length(v_slug) < 3 then v_slug := 'club-' || substr(md5(random()::text), 1, 6); end if;
   if exists (select 1 from public.clubes where slug = v_slug) then
-    v_slug := left(v_slug, 50) || '-' || substr(md5(random()::text), 1, 6);
+    v_slug := rtrim(left(v_slug, 50), '-') || '-' || substr(md5(random()::text), 1, 6);
   end if;
   insert into public.clubes (nombre, slug, zona, direccion, latitud, longitud, telefono, whatsapp, publicado)
   values (v_nombre, v_slug, private.texto(p_zona, 'La zona', 0, 80), private.texto(p_direccion, 'La dirección', 0, 200),

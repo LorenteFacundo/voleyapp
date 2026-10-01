@@ -15,15 +15,19 @@ describe('modelo v2: partidos', () => {
   let db: PGlite;
   let club: ClubDePrueba;
   let organizadora: Usuario;
+  // Cada cuenta puede tener hasta 4 reservas activas desde la app: las últimas
+  // pruebas usan una segunda organizadora.
+  let segundaOrganizadora: Usuario;
   let jugadores: Usuario[];
 
   beforeAll(async () => {
     db = await crearBaseDePruebas();
     club = await prepararClub(db, { nombre: 'Club Partidos' });
     organizadora = await nuevoUsuario(db, { nombre: 'Organizadora', nivel: 8 });
+    segundaOrganizadora = await nuevoUsuario(db, { nombre: 'Organizadora', nivel: 8 });
     jugadores = await Promise.all(['Ana', 'Beto', 'Caro', 'Dani'].map((nombre, indice) =>
       nuevoUsuario(db, { nombre, nivel: indice === 3 ? 2 : 6 })));
-    await abrirReservas(db, club.admin, [organizadora, ...jugadores]);
+    await abrirReservas(db, club.admin, [organizadora, segundaOrganizadora, ...jugadores]);
   });
 
   async function crearPartido(dia: number, hora: string, partido: Record<string, unknown>, confirmar = true) {
@@ -89,6 +93,7 @@ describe('modelo v2: partidos', () => {
   });
 
   it('la organizadora transfiere antes de bajarse y puede cancelar avisando a todos', async () => {
+    organizadora = segundaOrganizadora;
     const { partido_id: id, ocupacion_id: ocupacion } = await crearPartido(5, '18:00', { cupo_minimo: 2, cupo_maximo: 10 });
     await rpc(db, jugadores[0], 'partido_unirse', { p_partido_id: id });
     await rpc(db, jugadores[2], 'partido_unirse', { p_partido_id: id });

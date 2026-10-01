@@ -33,16 +33,19 @@ as $$
   from (select p_instante at time zone 'America/Argentina/Buenos_Aires' as l) x
 $$;
 
+-- Nombre para mostrar, en una sola línea. Con p_email = null nunca expone el
+-- email (se usa en todo lo que ven otras personas).
 create or replace function private.nombre_visible(p_nombre text, p_email text)
 returns text
 language sql immutable
 set search_path = ''
 as $$
   select case
-    when length(btrim(coalesce(p_nombre, ''))) >= 2 then left(btrim(p_nombre), 120)
+    when length(n.limpio) >= 2 then left(n.limpio, 120)
     when length(split_part(coalesce(p_email, ''), '@', 1)) >= 2 then left(split_part(p_email, '@', 1), 120)
     else 'Jugador'
   end
+  from (select btrim(pg_catalog.regexp_replace(coalesce(p_nombre, ''), '[\s\x01-\x1f\x7f]+', ' ', 'g')) as limpio) n
 $$;
 
 -- Limpia un texto libre: recorta, colapsa espacios (salvo multilinea) y
@@ -236,16 +239,19 @@ as $$
 declare
   v_id bigint;
   v_email text;
+  -- Títulos en una sola línea: también son el asunto del email.
+  v_titulo text := left(btrim(pg_catalog.regexp_replace(coalesce(p_titulo, ''), '[\s\x01-\x1f\x7f]+', ' ', 'g')), 200);
+  v_cuerpo text := left(pg_catalog.regexp_replace(p_cuerpo, '[\x01-\x08\x0b\x0c\x0e-\x1f\x7f]', '', 'g'), 1000);
 begin
   if p_usuario_id is null then return; end if;
   insert into public.notificaciones (usuario_id, tipo, titulo, cuerpo, url, club_id, ocupacion_id, partido_id)
-  values (p_usuario_id, p_tipo, left(p_titulo, 200), left(p_cuerpo, 1000), p_url, p_club_id, p_ocupacion_id, p_partido_id)
+  values (p_usuario_id, p_tipo, v_titulo, v_cuerpo, p_url, p_club_id, p_ocupacion_id, p_partido_id)
   returning id into v_id;
   if p_email then
     select u.email into v_email from public.usuarios u where u.id = p_usuario_id;
     if v_email is not null then
       insert into public.envios_notificacion (notificacion_id, canal, destino, asunto, cuerpo, url)
-      values (v_id, 'email', v_email, left(p_titulo, 200), coalesce(left(p_cuerpo, 1000), left(p_titulo, 200)), p_url);
+      values (v_id, 'email', v_email, v_titulo, coalesce(v_cuerpo, v_titulo), p_url);
     end if;
   end if;
 end;
@@ -458,12 +464,13 @@ begin
   loop
     v_inicio := private.instante_ar(v_fecha, s.hora_inicio);
     continue when v_inicio <= pg_catalog.now();
-    continue when exists (select 1 from public.ocupaciones o where o.serie_id = s.id and o.inicio = v_inicio);
+    -- La fecha ya existe (aunque se haya movido o liberado): no se recrea.
+    continue when exists (select 1 from public.ocupaciones o where o.serie_id = s.id and o.serie_fecha = v_fecha);
     begin
       insert into public.ocupaciones (club_id, cancha_id, inicio, fin, tipo, estado, origen,
-        usuario_id, cliente_id, serie_id, titulo, precio, creada_por)
+        usuario_id, cliente_id, serie_id, serie_fecha, titulo, precio, creada_por)
       values (s.club_id, s.cancha_id, v_inicio, v_inicio + make_interval(mins => s.duracion_min),
-        'reserva', 'confirmada', 'fijo', v_usuario, s.cliente_id, s.id, s.titulo, s.precio, s.creada_por);
+        'reserva', 'confirmada', 'fijo', v_usuario, s.cliente_id, s.id, v_fecha, s.titulo, s.precio, s.creada_por);
       v_creadas := v_creadas + 1;
     exception when exclusion_violation then
       v_conflictos := v_conflictos || v_fecha;
@@ -473,28 +480,28 @@ begin
 end;
 $$;
 
--- Cancela las fechas futuras de un fijo desde una fecha. Si alguna ya fue
--- cobrada no se toca nada: el club primero registra la devolución o la mueve.
+-- Cancela las fechas de un fijo que todavía no empezaron, desde una fecha. Si
+-- alguna ya fue cobrada no se toca nada: el club primero registra la
+-- devolución o la mueve.
 create or replace function private.cancelar_fechas_serie(p_serie_id bigint, p_desde date, p_motivo text)
 returns integer
 language plpgsql
 set search_path = ''
 as $$
 declare
+  v_desde timestamptz := greatest(private.instante_ar(p_desde, time '00:00'), pg_catalog.now());
   v_cobradas text;
   v_total integer;
 begin
   select string_agg(private.fecha_legible(o.inicio), ', ' order by o.inicio) into v_cobradas
   from public.ocupaciones o
-  where o.serie_id = p_serie_id and o.estado = 'confirmada' and o.pagado > 0
-    and o.inicio >= private.instante_ar(p_desde, time '00:00');
+  where o.serie_id = p_serie_id and o.estado = 'confirmada' and o.pagado > 0 and o.inicio >= v_desde;
   if v_cobradas is not null then
     raise exception 'Hay fechas futuras ya cobradas (%). Registrá la devolución o movelas antes de cambiar el fijo.', v_cobradas;
   end if;
   update public.ocupaciones o
   set estado = 'cancelada', cancelada_por = 'club', cancelada_at = pg_catalog.now(), motivo_cancelacion = p_motivo
-  where o.serie_id = p_serie_id and o.estado in ('pendiente', 'confirmada')
-    and o.inicio >= private.instante_ar(p_desde, time '00:00');
+  where o.serie_id = p_serie_id and o.estado in ('pendiente', 'confirmada') and o.inicio >= v_desde;
   get diagnostics v_total = row_count;
   return v_total;
 end;
@@ -513,6 +520,40 @@ as $$
     select count(*)::int from public.participantes_partido pp
     where pp.partido_id = p_partido_id and pp.estado_inscripcion in ('confirmado', 'pendiente_aprobacion')
   ) + coalesce((select p.cantidad_invitados_anonimos from public.partidos p where p.id = p_partido_id), 0)
+$$;
+
+-- Quién gestiona un partido: su organizador o, si lo publicó un club, el
+-- equipo actual de ese club (no quien lo publicó).
+create or replace function private.gestiona_partido(p_partido public.partidos)
+returns boolean
+language sql stable
+set search_path = ''
+as $$
+  select case
+    when p_partido.club_id is not null then private.rol_en_club(p_partido.club_id) is not null
+    else p_partido.organizador_id is not null and p_partido.organizador_id = (select auth.uid())
+  end
+$$;
+
+-- Avisa a quien gestiona el partido (organizador o equipo del club).
+create or replace function private.notificar_gestion_partido(
+  p_partido public.partidos, p_tipo text, p_titulo text, p_cuerpo text, p_email boolean default false
+)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare v_ocupacion public.ocupaciones%rowtype;
+begin
+  select * into v_ocupacion from public.ocupaciones where id = p_partido.ocupacion_id;
+  if p_partido.club_id is not null then
+    perform private.notificar_staff(p_partido.club_id, p_tipo, p_titulo, p_cuerpo,
+      '/partido/' || p_partido.id, v_ocupacion.id, p_email);
+  else
+    perform private.notificar(p_partido.organizador_id, p_tipo, p_titulo, p_cuerpo,
+      '/partido/' || p_partido.id, v_ocupacion.club_id, v_ocupacion.id, p_partido.id, p_email);
+  end if;
+end;
 $$;
 
 create or replace function private.otorgar_puntos(p_usuario_id uuid, p_puntos integer, p_motivo text, p_referencia bigint)
@@ -738,7 +779,7 @@ begin
   values (
     new.id,
     new.email,
-    private.nombre_visible(new.raw_user_meta_data ->> 'nombre_completo', new.email),
+    left(private.nombre_visible(new.raw_user_meta_data ->> 'nombre_completo', null), 80),
     case when v_nivel_texto ~ '^[0-9]{1,2}$' then least(greatest(v_nivel_texto::int, 1), 10) else 3 end,
     'jugador',
     case when v_telefono ~ '^[0-9]{8,15}$' then v_telefono end
