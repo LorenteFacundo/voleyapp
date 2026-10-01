@@ -1,10 +1,11 @@
 {
   "name": "aplicacion-de-voleibol",
   "version": "1.0.0",
-  "description": "Aplicacion para reservar canchas y organizar partidos de voleibol.",
+  "private": true,
+  "description": "Reservas de canchas, partidos y gestión de clubes de vóley.",
   "type": "module",
-  "directories": {
-    "doc": "docs"
+  "engines": {
+    "node": ">=22.6"
   },
   "scripts": {
     "dev": "vite --config vite.config.ts",
@@ -20,9 +21,6 @@
     "supabase:local": "node --experimental-strip-types --no-warnings=ExperimentalWarning scripts/supabase-local/servidor.ts",
     "dev:local": "node scripts/dev-local.mjs"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "@sentry/react": "^11.1.0",
     "@supabase/supabase-js": "^2.106.2",

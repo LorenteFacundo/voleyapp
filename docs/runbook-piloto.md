@@ -1,55 +1,189 @@
-# Operación del piloto VoleyApp
+# Runbook del piloto
 
-## Estado y regla de publicación
+Cómo llevar a producción los cambios de octubre 2026 y operar el piloto. Los comandos usan la CLI de Supabase con `npx` (no hace falta instalarla).
 
-El repositorio está en `main`. El piloto no se considera habilitado por el solo hecho de desplegar el frontend: la aplicación arranca con nuevas reservas y captación apagadas. No aplicar SQL a la base principal hasta guardar una copia recuperable y verificar cada migración. El proyecto Supabase actual es Free y no permite ramas de base de datos; no hay un entorno online aislado habilitado.
+## Antes de empezar
 
-## Configuración de Vercel
+- Tener acceso al proyecto de Supabase (`project ref` y contraseña de la base) y al proyecto de Vercel.
+- Recomendado: plan pago de Supabase antes de tener clubes reales. Revisá las condiciones vigentes del plan Free sobre pausa por inactividad y copias de seguridad.
+- Probar todo antes en `npm run dev:local`, y si es posible en un segundo proyecto de Supabase de staging con los mismos pasos.
 
-Configurar el proyecto como Vite, con `npm ci` y `npm run build`; la salida es `dist`. El archivo `vercel.json` mantiene la navegación directa de las rutas SPA y define cabeceras de seguridad.
+```bash
+npx supabase login
+```
 
-Crear las variables por separado para Production y Preview:
+```bash
+npx supabase link --project-ref TU_PROJECT_REF
+```
 
-- `VITE_SUPABASE_URL`: URL HTTPS del proyecto correspondiente.
-- `VITE_SUPABASE_PUBLISHABLE_KEY`: clave publicable/anon. Nunca usar una clave `service_role` o `sb_secret_` en el frontend.
-- `VITE_PILOT_BOOKINGS_ENABLED=false` hasta verificar el esquema, la lista de acceso y los RPC del piloto.
-- `VITE_CLUB_LEADS_ENABLED=false` hasta desplegar y probar `submit-club-lead` junto con su migración.
-- `VITE_CONTACT_WHATSAPP`: opcional; dejar vacío hasta tener el número real.
-- `VITE_SENTRY_DSN`: opcional hasta que exista un proyecto de Sentry y una DSN propia.
+## Respaldo (siempre antes de migrar)
 
-Las vistas previas no deben apuntar a producción. Como todavía no existe un proyecto Supabase separado, mantener deshabilitadas en Preview las acciones de escritura y no cargar allí claves de producción. La validación de build informa variables faltantes sin imprimir sus valores.
+Esquema, datos y roles por separado. Guardalos cifrados y fuera del repositorio: contienen datos personales.
 
-## Supabase, invitaciones y captación
+```bash
+npx supabase db dump --linked -f respaldo_esquema.sql
+```
 
-Antes de aplicar una migración:
+```bash
+npx supabase db dump --linked --data-only -f respaldo_datos.sql
+```
 
-1. Consultar su efecto y revisar los registros que afecta; detenerse si hay incompatibilidades.
-2. Generar y guardar un respaldo protegido fuera del repositorio. La salida predeterminada de `supabase db dump` es de esquema; no equivale a un respaldo completo de datos, Auth, Storage y permisos. El dump de datos puede contener datos personales: cifrarlo, limitar el acceso y no restaurarlo en entornos de prueba sin anonimización.
-3. Ensayar restauración y migración en un entorno aislado. El proyecto actual no admite ramas de base de datos y no se creó otro proyecto; este control continúa pendiente.
-4. Aplicar en producción solo con la pausa de nuevas operaciones activada y un procedimiento de vuelta probado. No eliminar tablas nuevas durante la reversión; conservar los datos generados.
+```bash
+npx supabase db dump --linked --role-only -f respaldo_roles.sql
+```
 
-Los borradores de agenda, partidos y operaciones continúan separados de las migraciones ejecutables hasta completar la revisión de seguridad y pruebas en un entorno aislado. Las cuentas se habilitarán desde el panel global, sin cambiarles el rol. Los enlaces de invitación solo identifican el partido y no otorgan acceso al piloto.
+## Registrar en el historial los pasos que ya existían
 
-El formulario de clubes llama a la Edge Function `submit-club-lead`. Para publicarla, configurar de forma segura `CLUB_LEAD_RATE_LIMIT_SALT` en Supabase Functions y confirmar que la función conserva `verify_jwt = false` solo porque valida el cuerpo, limita frecuencia y usa el rol de servicio en servidor. El rol de servicio no se envía nunca al navegador. Mantener el formulario apagado hasta que la tabla, el RPC del limitador y la función estén desplegados y probados.
+El repositorio incluye tres migraciones que reconstruyen lo que se hizo a mano en el panel (esquema original y dos pasos intermedios). En producción ya están aplicadas: se registran sin ejecutarlas.
 
-## Correo y avisos
+```bash
+npx supabase migration repair --status applied 20260527000000 20260605183700 20260605224900
+```
 
-Antes de invitar jugadores, elegir y verificar el dominio/remitente en Resend; configurar SMTP propio en Supabase Auth, confirmar direcciones de retorno por entorno y recorrer confirmación y recuperación de contraseña. No colocar API keys o credenciales SMTP en variables `VITE_*`. Los avisos transaccionales requieren además la cola/outbox, reintentos e idempotencia previstos; el envío de correo no debe revertir una operación de reserva.
+## Fase A: cierre de seguridad urgente (aplicar cuanto antes)
 
-## Alta de un club y atención
+`20261001120000_cierre_seguridad_urgente.sql` cierra agujeros que hoy están abiertos en producción y es compatible con el frontend publicado:
 
-1. Contactar al club y registrar su interés en la bandeja privada.
-2. Confirmar una persona responsable y qué cuenta administrará cada sede.
-3. Revisar y cargar horarios publicados, precio, duración de los turnos y alquileres permanentes con el club.
-4. Explicar que la solicitud queda pendiente hasta la confirmación, que los pagos/devoluciones se arreglan fuera de VoleyApp y que la agenda unifica app y canales externos.
-5. Empezar con un grupo pequeño de cuentas invitadas en Zona Sur y CABA; resolver consultas manualmente y registrar cancelaciones/conflictos.
+- anónimos podían modificar y borrar clubes a través de la vista `clubes_publicos`;
+- cualquier usuario podía bloquear u ocupar turnos de cualquier club;
+- era posible entrar a partidos privados, crear perfiles con rol de admin y autopromoverse;
+- el formulario de clubes salteaba el límite de envíos.
 
-## Privacidad, pagos y recuperación
+Pasos:
 
-Guardar solo los datos necesarios para contactar al jugador o al responsable. Los pagos y devoluciones se registran como externos; VoleyApp no debe indicar que un reintegro ocurrió hasta que el club lo confirme. Publicar condiciones y aviso de privacidad revisados antes del alta abierta: hoy faltan la identidad legal/responsable de datos y su canal de contacto, por lo que no se deben inventar en el texto.
+1. Hacer el respaldo.
+2. En Supabase → SQL Editor, pegar y ejecutar el contenido de `supabase/migrations/20261001120000_cierre_seguridad_urgente.sql`.
+3. Registrarla como aplicada:
 
-Ante incidentes, pausar nuevas operaciones, mantener disponibles la consulta y la gestión de reservas existentes, preservar logs y respaldos, y usar una versión compatible del frontend. Reanudar solo después de revisar los datos afectados y verificar de nuevo disponibilidad y permisos.
+```bash
+npx supabase migration repair --status applied 20261001120000
+```
 
-## Métricas de seguimiento
+4. Verificar en la app publicada que el catálogo y el panel de administración siguen cargando.
 
-Revisar semanalmente solicitudes recibidas y confirmadas, tiempo de respuesta, reservas canceladas, partidos efectivamente realizados (marcados después del evento) y uso recurrente por club y jugador. No inferir “partido realizado” únicamente por el paso del tiempo.
+## Fase B: modelo v2 y frontend nuevo (en una misma ventana)
+
+Las migraciones `20261001130000` a `20261001130600` reemplazan las funciones anteriores, así que el frontend nuevo y la base se actualizan juntos.
+
+1. Hacer el respaldo.
+2. Correr el chequeo previo (solo lectura) en el SQL Editor: `supabase/preflight/antes_del_modelo_v2.sql`. Revisar qué se va a normalizar u omitir, qué funciones o vistas creadas a mano quedarán cerradas y quién es dueño de PostGIS.
+3. Aplicar las migraciones:
+
+```bash
+npx supabase db push
+```
+
+4. Revisar `private.migracion_omitidos` (turnos que no se pudieron trasladar) en el SQL Editor.
+5. Desplegar el frontend en Vercel desde `main` (variables abajo). La variable `VITE_PILOT_BOOKINGS_ENABLED` ya no se usa: borrala.
+6. Ingresar como admin global y revisar Administración → Resumen y Clubes.
+
+Las reservas de jugadores quedan **pausadas** al terminar la migración (`app_config`). Los clubes operan su agenda igual. Se habilitan desde Administración → Operación.
+
+### Vuelta atrás
+
+La migración no borra datos: las tablas anteriores quedan intactas. Si la verificación inmediata falla, restaurá el respaldo del paso 1 (se pierde lo hecho después) y volvé a publicar el deploy anterior de Vercel. No borres tablas nuevas que ya tengan datos.
+
+## Variables del frontend (Vercel)
+
+| Variable | Valor |
+| --- | --- |
+| `VITE_SUPABASE_URL` | URL HTTPS del proyecto |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Clave publicable/anon (nunca `service_role` ni `sb_secret_`) |
+| `VITE_SENTRY_DSN` | Opcional |
+| `VITE_CLUB_LEADS_ENABLED` | `true` después de desplegar `submit-club-lead` |
+| `VITE_CONTACT_WHATSAPP` | Opcional, dígitos internacionales |
+
+Las vistas previas de Vercel no deben apuntar a producción. Si Supabase usa un dominio propio, agregalo a la política de contenido (`connect-src` e `img-src`) de `vercel.json`.
+
+## Edge Functions
+
+```bash
+npx supabase functions deploy submit-club-lead
+```
+
+```bash
+npx supabase functions deploy enviar-notificaciones
+```
+
+Secretos (Supabase → Edge Functions → Secrets, o `npx supabase secrets set NOMBRE=valor`):
+
+| Secreto | Para qué |
+| --- | --- |
+| `CLUB_LEAD_RATE_LIMIT_SALT` | Sal aleatoria para el límite del formulario de clubes |
+| `SITIO_URL` | URL pública de la app (restringe el origen del formulario y arma los enlaces de los emails) |
+| `RESEND_API_KEY` | Clave de Resend |
+| `EMAIL_REMITENTE` | Ej. `VoleyApp <avisos@tudominio.com>`, con el dominio verificado en Resend |
+| `ENVIOS_SECRETO` | Secreto largo y aleatorio compartido con el job de envíos |
+
+## Tareas programadas y envío de emails
+
+En Database → Extensions habilitar `pg_cron` y `pg_net`. Si `pg_cron` ya estaba habilitado al migrar, los jobs `voleyapp-tareas` (cada 5 minutos) y `voleyapp-fijos` (diario) quedaron creados. Si no, crearlos así:
+
+```sql
+select cron.schedule('voleyapp-tareas', '*/5 * * * *', 'select private.procesar_tareas()');
+select cron.schedule('voleyapp-fijos', '15 6 * * *', 'select private.materializar_series()');
+```
+
+Job de emails (reemplazá el project ref y usá el mismo valor que `ENVIOS_SECRETO`):
+
+```sql
+select vault.create_secret('VALOR_DE_ENVIOS_SECRETO', 'envios_secreto');
+
+select cron.schedule('voleyapp-emails', '* * * * *', $$
+  select net.http_post(
+    url := 'https://TU_PROJECT_REF.supabase.co/functions/v1/enviar-notificaciones',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-envios-secreto', (select decrypted_secret from vault.decrypted_secrets where name = 'envios_secreto')
+    ),
+    body := '{}'::jsonb
+  )
+$$);
+```
+
+Sin pg_cron, los pedidos igual vencen al operar y el admin puede correr las tareas desde Administración → Resumen.
+
+## Auth
+
+En Authentication → URL Configuration:
+
+- Site URL: `https://tudominio`.
+- Redirect URLs: `https://tudominio/**`.
+
+En Authentication → Providers → Email:
+
+- Confirm email: activado.
+- Contraseña mínima: 8.
+- Protección de contraseñas filtradas: activada, si el plan lo permite.
+
+En Authentication → SMTP Settings, configurar Resend (host `smtp.resend.com`, puerto 465, usuario `resend`, contraseña = API key) con el remitente verificado. Las plantillas en español están en `supabase/templates/`: pegarlas en Authentication → Email Templates.
+
+## Primeros pasos operativos
+
+1. Administración → Clubes: crear el club y tocar "Invitar dueño". El enlace se manda por WhatsApp; la persona entra con ese email (confirmado) y acepta.
+2. El dueño completa Ajustes: datos públicos, WhatsApp, alias para transferencias, canchas (fotos), horarios publicados, políticas y equipo. Después publica el club.
+3. El dueño carga sus fijos (o los importa desde Excel) y empieza a anotar en la agenda lo que llega por WhatsApp.
+4. Administración → Usuarios: habilitar el acceso al piloto de los jugadores invitados.
+5. Administración → Operación: quitar la pausa cuando los clubes estén listos.
+
+Los pagos y devoluciones se registran como externos: VoleyApp no cobra ni reintegra dinero. Antes del alta abierta hay que publicar términos y aviso de privacidad con la identidad del responsable de los datos (Ley 25.326).
+
+## Incidentes
+
+1. Administración → Operación: pausar las reservas de jugadores. Los clubes siguen operando.
+2. Preservar logs (Supabase → Logs) y no borrar datos.
+3. Revisar la auditoría (Administración → Auditoría) y, si corresponde, restaurar desde el respaldo.
+4. Reanudar solo después de verificar disponibilidad y permisos.
+
+## Métricas del piloto
+
+Revisar cada semana:
+
+- Porcentaje de la ocupación real de cada club cargada en la agenda.
+- Pedidos de la app y su tiempo de respuesta.
+- Pedidos vencidos sin respuesta.
+- Deuda de fijos al cierre de la semana.
+- Cancelaciones tardías y "no vinieron".
+- Partidos realizados y uso semanal del dueño y del encargado.
+
+Fuentes: Administración → Resumen y Reportes de cada club.

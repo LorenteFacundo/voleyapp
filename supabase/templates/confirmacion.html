@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+  <body style="margin:0;background:#f8f9fa;font-family:Arial,Helvetica,sans-serif;color:#2d3436">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 12px">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;padding:28px">
+            <tr><td style="font-size:20px;font-weight:800;color:#1a237e;padding-bottom:4px">VoleyApp</td></tr>
+            <tr><td style="font-size:18px;font-weight:700;padding:12px 0 8px">Confirmá tu cuenta</td></tr>
+            <tr>
+              <td style="font-size:15px;line-height:1.5;color:#4a5054;padding-bottom:20px">
+                Hola. Para terminar de crear tu cuenta con <strong>{{ .Email }}</strong>, confirmá tu email con el botón. El enlace vence en una hora.
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#c2410c;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:12px">Confirmar mi email</a>
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:12px;color:#6b7280;padding-top:24px">
+                Si no creaste una cuenta en VoleyApp, ignorá este mensaje.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

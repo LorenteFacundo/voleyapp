@@ -1,0 +1,19 @@
+{
+  "name": "VoleyApp · Canchas y partidos de vóley",
+  "short_name": "VoleyApp",
+  "description": "Reservá canchas, armá partidos y gestioná la agenda de tu club de vóley.",
+  "lang": "es-AR",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F8F9FA",
+  "theme_color": "#FF6B35",
+  "icons": [
+    { "src": "/icono.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icono.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Mi club", "short_name": "Mi club", "url": "/gestion" },
+    { "name": "Mis reservas", "short_name": "Reservas", "url": "/mis-reservas" }
+  ]
+}

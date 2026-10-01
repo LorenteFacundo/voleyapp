@@ -39,8 +39,8 @@ function html(envio: Envio, destino: string): string {
         <tr><td style="font-size:20px;font-weight:800;color:#1a237e;padding-bottom:4px">🏐 VoleyApp</td></tr>
         <tr><td style="font-size:18px;font-weight:700;padding:12px 0 8px">${escapar(envio.asunto)}</td></tr>
         <tr><td style="font-size:15px;line-height:1.5;color:#4a5054;padding-bottom:20px">${escapar(envio.cuerpo).replace(/\n/g, '<br>')}</td></tr>
-        <tr><td><a href="${escapar(destino)}" style="display:inline-block;background:#ff6b35;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:12px">Abrir VoleyApp</a></td></tr>
-        <tr><td style="font-size:12px;color:#8a9094;padding-top:24px">Recibís este aviso porque tenés una cuenta en VoleyApp.</td></tr>
+        <tr><td><a href="${escapar(destino)}" style="display:inline-block;background:#c2410c;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:12px">Abrir VoleyApp</a></td></tr>
+        <tr><td style="font-size:12px;color:#6b7280;padding-top:24px">Recibís este aviso porque tenés una cuenta en VoleyApp.</td></tr>
       </table>
     </td></tr>
   </table>

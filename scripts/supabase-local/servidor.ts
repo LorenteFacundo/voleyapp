@@ -519,7 +519,7 @@ async function storage(db: PGlite, req: IncomingMessage, res: ServerResponse, ru
     let contenido = cuerpo;
     if (String(req.headers['content-type'] ?? '').startsWith('multipart/form-data')) {
       const formulario = await new Request('http://local/', {
-        method: 'POST', headers: { 'content-type': String(req.headers['content-type']) }, body: cuerpo,
+        method: 'POST', headers: { 'content-type': String(req.headers['content-type']) }, body: new Uint8Array(cuerpo),
       }).formData();
       const archivo = [...formulario.values()].find((valor): valor is File => typeof valor !== 'string');
       contenido = archivo ? Buffer.from(await archivo.arrayBuffer()) : Buffer.alloc(0);

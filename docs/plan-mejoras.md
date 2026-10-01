@@ -2,6 +2,22 @@
 
 Análisis completo del repositorio: frontend, migraciones aplicadas, borradores pendientes y Edge Function. No se tocó la base remota. Las afirmaciones sobre "producción" se deducen de `supabase/migrations/`, y varias funciones existen solo en la base viva, así que conviene confirmarlas con una consulta de ACL (sección 5) antes de actuar.
 
+## Estado de avance (1 de octubre de 2026)
+
+Implementado en el repositorio y probado sobre una base reconstruida desde cero. **No está aplicado en producción**: el orden de despliegue está en el [runbook](runbook-piloto.md) y lo que falta, en el [estado del piloto](estado-piloto.md).
+
+| Fase | Estado |
+| --- | --- |
+| 0. Cerrar y resguardar | Migración urgente lista (`20261001120000`), compatible con el frontend publicado. Falta aplicarla con respaldo previo. |
+| 1. Base verificable | Hecho: baseline y reconstrucción de los pasos manuales, base local sin Docker (PGlite), pruebas de autorización por rol para cada RPC, React Query, panel usable desde el celular. Falta: proyecto de staging. |
+| 2. Reemplazar el Excel | Hecho: modelo unificado, agenda (grilla, carga rápida, bloqueos, mover), clientes con saldo, fijos con cobro semanal, importación CSV, ajustes autoservicio, compartir turnos libres, roles, avisos al club, manifest para agregar a inicio. |
+| 3. Jugadores y cobro | Hecho: pedidos con lista de acceso y pausa, cancelación con plazo del club, aviso de pago por alias, avisos y recordatorios, reportes. Falta: lista de espera. |
+| 4. Crecimiento | Hecho: partidos abiertos publicados por el club. Fuera de alcance por ahora: Mercado Pago, WhatsApp Business, clases y torneos. |
+
+Decisiones tomadas para avanzar (sección 8): se rehízo el modelo antes de activar; confirmación manual por defecto y automática opcional por club; cobro por alias con aviso del jugador, sin pagos online. Siguen abiertas el modelo de negocio, el presupuesto y los clubes piloto concretos.
+
+Pendientes de ingeniería: tipos generados con `supabase gen types` (hoy los contratos están en `src/api/tipos.ts`), pruebas end-to-end con Playwright contra staging y un flujo de baja de cuenta (Ley 25.326). Las tablas nuevas ya definen qué pasa al borrar un usuario; falta revisar las anteriores (partidos, participantes, notificaciones).
+
 ---
 
 ## 1. Resumen
