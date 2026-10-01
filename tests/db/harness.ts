@@ -111,8 +111,28 @@ export async function como<T = Record<string, unknown>>(
   });
 }
 
-function serializar(value: unknown): unknown {
+const tiposPorBase = new WeakMap<PGlite, Map<string, Record<string, string>>>();
+
+/** Argument types of a public function, as PostgREST resolves them by name. */
+async function tiposDeArgumentos(db: PGlite, fn: string): Promise<Record<string, string>> {
+  let cache = tiposPorBase.get(db);
+  if (!cache) {
+    cache = new Map();
+    tiposPorBase.set(db, cache);
+  }
+  const cached = cache.get(fn);
+  if (cached) return cached;
+  const result = await db.query<{ nombre: string; tipo: string }>(
+    `select unnest(p.proargnames) as nombre, unnest(p.proargtypes::regtype[]::text[]) as tipo
+     from pg_proc p where p.proname = $1 and p.pronamespace = 'public'::regnamespace`, [fn]);
+  const tipos = Object.fromEntries(result.rows.map((row) => [row.nombre, row.tipo]));
+  cache.set(fn, tipos);
+  return tipos;
+}
+
+function serializar(value: unknown, tipo: string | undefined): unknown {
   if (value === null || value === undefined) return null;
+  if (tipo === 'jsonb' || tipo === 'json') return JSON.stringify(value);
   if (Array.isArray(value)) return `{${value.map((item) => String(item)).join(',')}}`;
   if (value instanceof Date) return value.toISOString();
   if (typeof value === 'object') return JSON.stringify(value);
@@ -126,10 +146,14 @@ function serializar(value: unknown): unknown {
 export async function rpcFilas<T = unknown>(
   db: PGlite, actor: Actor, fn: string, args: Record<string, unknown> = {},
 ): Promise<T[]> {
+  const tipos = await tiposDeArgumentos(db, fn);
   const names = Object.keys(args);
-  const placeholders = names.map((name, index) => `${name} => $${index + 1}`).join(', ');
+  const placeholders = names
+    .map((name, index) => `${name} => $${index + 1}${tipos[name] ? `::${tipos[name]}` : ''}`)
+    .join(', ');
   const rows = await como<{ resultado: T }>(
-    db, actor, `select public.${fn}(${placeholders}) as resultado`, names.map((name) => serializar(args[name])),
+    db, actor, `select public.${fn}(${placeholders}) as resultado`,
+    names.map((name) => serializar(args[name], tipos[name])),
   );
   return rows.map((row) => row.resultado);
 }
