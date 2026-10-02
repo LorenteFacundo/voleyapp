@@ -1,187 +1,187 @@
-import { useState, useEffect, useMemo } from 'react';
-import { MapPin, ArrowLeft, Search, DollarSign } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
-import { formatMoney } from '@/lib/format';
-import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
+import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { List, LocateFixed, Map as IconoMapa, Search, Store, Sun, Umbrella } from 'lucide-react';
+import clsx from 'clsx';
+import { useClubes } from '@/api/consultas';
+import { useUbicacion } from '@/hooks/useGeolocation';
+import { formatMoney, pluralizar } from '@/lib/format';
+import { AppShell, PageTitle } from '@/components/layout/AppShell';
+import { Spinner } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Aviso, ErrorCarga, Vacio } from '@/components/ui/Estados';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { Badge } from '@/components/ui/Badge';
-import { BottomNav } from '@/components/layout/BottomNav';
+import { ChipFiltro } from '@/features/jugador/ChipFiltro';
+import { ClubCard } from '@/features/jugador/ClubCard';
+import { filtrarClubes, ordenarClubes, precioDesde } from '@/features/jugador/catalogo';
+import { clasesBoton } from '@/components/ui/estilosBoton';
+import { tieneCoordenadas } from '@/features/mapa/distancia';
+import { MapaClubesPerezoso } from '@/features/mapa/MapaClubesPerezoso';
 
-type CanchaConClub = {
-  id: number;
-  titulo: string;
-  descripcion: string | null;
-  fotos: string[];
-  precio_total: number;
-  precio_sena: number;
-  club_nombre: string;
-  club_direccion: string | null;
-};
+type Vista = 'lista' | 'mapa';
 
 export function CanchasPage() {
-  const navigate = useNavigate();
-  const [canchas, setCanchas] = useState<CanchaConClub[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [params, setParams] = useSearchParams();
+  const busqueda = params.get('q') ?? '';
+  const [techada, setTechada] = useState(false);
+  const [arena, setArena] = useState(false);
+  const [cerca, setCerca] = useState(false);
+  const [vista, setVista] = useState<Vista>('lista');
+  const ubicacion = useUbicacion();
+  const clubes = useClubes();
 
-  useEffect(() => {
-    let cancelled = false;
+  const origen = cerca && ubicacion.coordenadas
+    ? { latitud: ubicacion.coordenadas[0], longitud: ubicacion.coordenadas[1] }
+    : null;
+  const resultados = clubes.data ? ordenarClubes(filtrarClubes(clubes.data, { busqueda, techada, arena }), origen) : [];
+  const hayFiltros = !!busqueda.trim() || techada || arena;
+  const sinUbicacion = resultados.filter(({ club }) => !tieneCoordenadas(club)).length;
 
-    supabase
-      .from('canchas')
-      .select(`
-        id, titulo, descripcion, fotos, precio_total, precio_sena,
-        clubes:club_id (nombre, direccion)
-      `)
-      .order('titulo', { ascending: true })
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) {
-          console.error('Error fetching canchas:', error);
-          setCanchas([]);
-        } else {
-          const mapped = (data ?? []).map((c: any) => ({
-            id: c.id,
-            titulo: c.titulo,
-            descripcion: c.descripcion,
-            fotos: c.fotos ?? [],
-            precio_total: c.precio_total,
-            precio_sena: c.precio_sena,
-            club_nombre: c.clubes?.nombre ?? 'Sin club',
-            club_direccion: c.clubes?.direccion ?? null,
-          }));
-          setCanchas(mapped);
-        }
-        setLoading(false);
-      });
+  function cambiarBusqueda(valor: string) {
+    setParams((actuales) => {
+      const proximos = new URLSearchParams(actuales);
+      if (valor) proximos.set('q', valor);
+      else proximos.delete('q');
+      return proximos;
+    }, { replace: true });
+  }
 
-    return () => { cancelled = true; };
-  }, []);
+  function alternarCercania() {
+    if (cerca) {
+      setCerca(false);
+      return;
+    }
+    setCerca(true);
+    if (!ubicacion.coordenadas) ubicacion.pedir();
+  }
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return canchas;
-    const term = search.toLowerCase();
-    return canchas.filter(
-      (c) =>
-        c.titulo.toLowerCase().includes(term) ||
-        c.club_nombre.toLowerCase().includes(term) ||
-        (c.club_direccion?.toLowerCase().includes(term) ?? false)
-    );
-  }, [canchas, search]);
+  function limpiarFiltros() {
+    cambiarBusqueda('');
+    setTechada(false);
+    setArena(false);
+  }
 
   return (
-    <div className="app-shell pb-20 md:pb-0">
-      <header className="sticky top-0 z-30 border-b border-vb-gray/10 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
-            <ArrowLeft size={18} />
-          </Button>
-          <h1 className="text-lg font-bold text-vb-blue">Canchas</h1>
-        </div>
-      </header>
+    <AppShell ancho="amplio">
+      <PageTitle titulo="Canchas" descripcion="Elegí un club, mirá los horarios libres y pedí tu cancha." />
 
-      <main className="mx-auto max-w-7xl px-4 py-6">
-        {/* Search */}
-        <div className="relative mb-6">
-          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-vb-gray/40" size={18} />
-          <Input
-            className="pl-10"
-            placeholder="Buscar por nombre, club o dirección..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-
-        {loading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} height={220} rounded />
+      <div className="space-y-3">
+        <Input
+          className="max-w-xl"
+          label="Buscar por club, barrio o dirección"
+          type="search"
+          enterKeyHint="search"
+          placeholder="Ej.: Lanús, Palermo, Club Sur…"
+          value={busqueda}
+          onChange={(evento) => cambiarBusqueda(evento.target.value)}
+          icono={<Search size={18} />}
+        />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0" role="group" aria-label="Filtros">
+            <ChipFiltro activo={techada} onClick={() => setTechada((valor) => !valor)}>
+              <Umbrella size={16} aria-hidden="true" /> Techada
+            </ChipFiltro>
+            <ChipFiltro activo={arena} onClick={() => setArena((valor) => !valor)}>
+              <Sun size={16} aria-hidden="true" /> Arena / beach
+            </ChipFiltro>
+            <ChipFiltro activo={cerca} onClick={alternarCercania}>
+              {cerca && ubicacion.estado === 'buscando' ? <Spinner /> : <LocateFixed size={16} aria-hidden="true" />}
+              Cerca mío
+            </ChipFiltro>
+          </div>
+          <div className="flex rounded-xl bg-ink/5 p-1" role="group" aria-label="Cómo ver los clubes">
+            {([['lista', 'Lista', List], ['mapa', 'Mapa', IconoMapa]] as const).map(([id, etiqueta, Icono]) => (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={vista === id}
+                onClick={() => setVista(id)}
+                className={clsx(
+                  'flex min-h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vb-orange-ink',
+                  vista === id ? 'bg-white text-vb-blue shadow-sm' : 'text-ink/65 hover:text-ink',
+                )}
+              >
+                <Icono size={16} aria-hidden="true" /> {etiqueta}
+              </button>
             ))}
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center gap-4 py-16 text-center">
-            <div className="grid h-20 w-20 place-items-center rounded-full bg-vb-orange-light text-vb-orange">
-              <MapPin size={40} />
-            </div>
-            <h2 className="text-2xl font-bold text-vb-blue">
-              {search ? 'Sin resultados' : 'Sin canchas disponibles'}
-            </h2>
-            <p className="max-w-sm text-vb-gray/65">
-              {search
-                ? 'No se encontraron canchas con ese criterio. Probá con otro término.'
-                : 'Todavía no hay canchas publicadas. Volvé más tarde.'}
-            </p>
-            {search && (
-              <Button variant="secondary" onClick={() => setSearch('')}>
-                Limpiar búsqueda
-              </Button>
-            )}
+        </div>
+        {cerca && ubicacion.estado === 'buscando' && <p role="status" className="text-sm text-ink/65">Buscando tu ubicación…</p>}
+        {cerca && (ubicacion.estado === 'denegado' || ubicacion.estado === 'no_disponible') && (
+          <Aviso tono="alerta" titulo="No pudimos usar tu ubicación">
+            {ubicacion.estado === 'denegado'
+              ? 'Habilitá el permiso de ubicación del navegador para ordenar por cercanía. Mientras tanto, te mostramos los clubes por nombre.'
+              : 'Tu dispositivo no nos dio la ubicación. Probá de nuevo en un rato.'}
+          </Aviso>
+        )}
+      </div>
+
+      <div className="mt-5">
+        {clubes.isPending ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-hidden="true">
+            {Array.from({ length: 6 }, (_, indice) => <Skeleton key={indice} height={300} className="rounded-2xl" />)}
           </div>
+        ) : clubes.isError ? (
+          <ErrorCarga error={clubes.error} onRetry={() => clubes.refetch()} />
+        ) : !clubes.data.length ? (
+          <Vacio
+            icono={<Store size={36} />}
+            titulo="Todavía no hay clubes publicados"
+            descripcion="Estamos sumando clubes de Zona Sur y Capital. ¿Tenés una cancha? Sumala a VoleyApp."
+            accion={<a href="/#clubes" className={clasesBoton({ variant: 'primary' })}>Sumar mi club</a>}
+          />
+        ) : !resultados.length ? (
+          <Vacio
+            icono={<Search size={36} />}
+            titulo="No encontramos clubes con esa búsqueda"
+            descripcion="Probá con otro barrio o sacá algún filtro."
+            accion={hayFiltros && <button type="button" onClick={limpiarFiltros} className={clasesBoton({ variant: 'secondary' })}>Limpiar filtros</button>}
+          />
         ) : (
           <>
-            <p className="mb-4 text-sm text-vb-gray/60">
-              {filtered.length} cancha{filtered.length !== 1 ? 's' : ''} encontrada{filtered.length !== 1 ? 's' : ''}
+            <h2 className="sr-only">Resultados</h2>
+            <p className="mb-3 text-sm font-semibold text-ink/65" aria-live="polite">
+              {pluralizar(resultados.length, 'club', 'clubes')}
+              {origen ? ' · del más cercano al más lejano' : ''}
             </p>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {filtered.map((cancha) => (
-                <Card
-                  key={cancha.id}
-                  hover
-                  padding="none"
-                  className="cursor-pointer overflow-hidden"
-                  role="link"
-                  tabIndex={0}
-                  onClick={() => navigate(`/cancha/${cancha.id}`)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      navigate(`/cancha/${cancha.id}`);
-                    }
-                  }}
-                >
-                  {cancha.fotos[0] ? (
-                    <img
-                      src={cancha.fotos[0]}
-                      alt={cancha.titulo}
-                      className="h-40 w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-40 items-center justify-center bg-vb-light text-vb-orange">
-                      <MapPin size={40} />
-                    </div>
-                  )}
-                  <div className="p-4">
-                    <h3 className="font-bold text-vb-blue truncate">{cancha.titulo}</h3>
-                    <p className="mt-1 flex items-center gap-1 text-sm text-vb-gray/60">
-                      <MapPin size={14} />
-                      <span className="truncate">{cancha.club_nombre}</span>
-                    </p>
-                    {cancha.club_direccion && (
-                      <p className="mt-0.5 text-xs text-vb-gray/50 truncate">
-                        {cancha.club_direccion}
-                      </p>
-                    )}
-                    <div className="mt-3 flex items-center justify-between">
-                      <Badge variant="court">
-                        <DollarSign size={12} className="mr-0.5" />
-                        {formatMoney(cancha.precio_total)}
-                      </Badge>
-                      <span className="text-xs text-vb-gray/50">
-                        Seña {formatMoney(cancha.precio_sena)}
-                      </span>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
+            {vista === 'lista' ? (
+              <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {resultados.map(({ club, distanciaKm }) => (
+                  <li key={club.id}><ClubCard club={club} distanciaKm={distanciaKm} /></li>
+                ))}
+              </ul>
+            ) : (
+              <>
+                <MapaClubesPerezoso
+                  onVerLista={() => setVista('lista')}
+                  ubicacion={origen ? ubicacion.coordenadas : null}
+                  puntos={resultados.flatMap(({ club }) => {
+                    if (!tieneCoordenadas(club)) return [];
+                    const desde = precioDesde(club.canchas);
+                    return [{
+                      id: club.id,
+                      nombre: club.nombre,
+                      slug: club.slug,
+                      zona: club.zona,
+                      direccion: club.direccion,
+                      latitud: club.latitud,
+                      longitud: club.longitud,
+                      detalle: desde ? `Desde ${formatMoney(desde)} el turno` : null,
+                    }];
+                  })}
+                />
+                {sinUbicacion > 0 && (
+                  <p className="mt-2 text-sm text-ink/65">
+                    {sinUbicacion === 1
+                      ? '1 club no tiene la ubicación cargada y no aparece en el mapa: lo ves en la lista.'
+                      : `${sinUbicacion} clubes no tienen la ubicación cargada y no aparecen en el mapa: los ves en la lista.`}
+                  </p>
+                )}
+              </>
+            )}
           </>
         )}
-      </main>
-
-      <BottomNav />
-    </div>
+      </div>
+    </AppShell>
   );
 }

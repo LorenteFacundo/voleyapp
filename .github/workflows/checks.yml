@@ -1,0 +1,47 @@
+name: Checks
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Auditoría de dependencias
+        run: npm audit --audit-level=high
+
+      - name: Lint y tipos
+        run: npm run lint
+
+      - name: Pruebas unitarias
+        run: npm run test:unit
+
+      # La base migrada se cachea; se reconstruye solo si cambia el SQL.
+      - uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/voleyapp-db
+          key: db-${{ hashFiles('supabase/migrations/**', 'tests/db/supabase-shim.sql', 'tests/db/harness.ts') }}
+
+      - name: Pruebas de base de datos (migraciones, RLS y RPC sobre PostgreSQL)
+        run: npm run test:db
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder

@@ -1,105 +1,51 @@
-import { useCallback, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
-import { usePartidos } from '@/hooks/usePartidos';
-import { useClubes } from '@/hooks/useClubes';
-import { Header } from '@/components/layout/Header';
-import { HeroSection } from '@/components/layout/HeroSection';
-import { BottomNav } from '@/components/layout/BottomNav';
-import { ExpandableMap } from '@/components/features/ExpandableMap';
-import { MatchList } from '@/components/features/MatchList';
-import { BookingFlow } from '@/components/features/BookingFlow';
-import { UserPanel } from '@/components/features/UserPanel';
-import { AuthForm } from '@/components/features/AuthForm';
-import { RankingBoard } from '@/components/features/RankingBoard';
-import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { toast } from 'sonner';
-import { Plus } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { LogIn, UserPlus } from 'lucide-react';
+import { useAuth } from '@/contexts/auth';
+import { rutaIngreso } from '@/lib/navigation';
+import { AppShell } from '@/components/layout/AppShell';
+import { AvisoOperacion } from '@/features/jugador/AvisoOperacion';
+import { clasesBoton } from '@/components/ui/estilosBoton';
+import { AccesosRapidos } from '@/features/jugador/inicio/AccesosRapidos';
+import { Bienvenida } from '@/features/jugador/inicio/Bienvenida';
+import { PartidosAbiertos } from '@/features/jugador/inicio/PartidosAbiertos';
+import { ProximaReserva } from '@/features/jugador/inicio/ProximaReserva';
+import { RankingTop } from '@/features/jugador/inicio/RankingTop';
+import { SumaTuClub } from '@/features/jugador/inicio/SumaTuClub';
 
 export function HomePage() {
   const { session, perfil } = useAuth();
-  const navigate = useNavigate();
-  const isAuthenticated = session != null;
-
-  const { partidos, loading: loadingPartidos, refresh: refreshPartidos } = usePartidos(isAuthenticated);
-  const { clubes, refresh: refreshClubes } = useClubes();
-
-  const [bookingOpen, setBookingOpen] = useState(false);
-  const [bookingClubId, setBookingClubId] = useState<number | null>(null);
-
-  const openBooking = useCallback((clubId?: number) => {
-    setBookingClubId(clubId ?? null);
-    setBookingOpen(true);
-  }, []);
-
-  const closeBooking = useCallback(() => {
-    setBookingOpen(false);
-    setBookingClubId(null);
-  }, []);
-
-  const refresh = useCallback(() => {
-    refreshPartidos();
-    refreshClubes();
-  }, [refreshPartidos, refreshClubes]);
 
   return (
-    <div className="app-shell pb-20 md:pb-0">
-      <Header onOpenBooking={() => openBooking()} onRefresh={refresh} />
-      <HeroSection />
+    <AppShell ancho="amplio">
+      <Bienvenida nombre={perfil?.nombre} />
 
-      <main className="mx-auto max-w-7xl px-4 py-6">
-        <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-          {/* Main content */}
-          <div className="grid gap-6">
-            <ExpandableMap clubes={clubes} onSelectClub={(id) => openBooking(id)} />
-            <MatchList partidos={partidos} loading={loadingPartidos} isAuthenticated={isAuthenticated} />
-          </div>
-
-          {/* Sidebar (desktop) */}
-          <aside className="hidden content-start gap-6 lg:grid">
-            {session ? (
-              <UserPanel onNavigateAdmin={() => navigate('/admin')} />
-            ) : (
-              <Card padding="md">
-                <AuthForm onMessage={(msg) => toast(msg)} />
-              </Card>
-            )}
-
-            <Card padding="md">
-              <div className="text-center">
-                <h2 className="font-bold text-vb-blue">Reservar cancha</h2>
-                <p className="mt-2 text-sm text-vb-gray/65">
-                  Busca un club, elegí la cancha y mirá los horarios disponibles.
-                </p>
-                <Button className="mt-4" fullWidth onClick={() => openBooking()}>
-                  Buscar y alquilar
-                </Button>
-              </div>
-            </Card>
-
-            <RankingBoard limit={10} />
-          </aside>
-        </div>
-      </main>
-
-      {/* FAB for mobile */}
-      <button
-        onClick={() => openBooking()}
-        className="fixed bottom-20 right-4 z-40 grid h-14 w-14 place-items-center rounded-full bg-vb-orange text-white shadow-lg shadow-vb-orange/30 transition hover:scale-105 active:scale-95 md:hidden"
-        aria-label="Crear partido"
-      >
-        <Plus size={28} />
-      </button>
-
-      <BottomNav />
-
-      <BookingFlow
-        initialClubId={bookingClubId}
-        open={bookingOpen}
-        onClose={closeBooking}
-        onRefresh={refresh}
+      <AvisoOperacion
+        className="mt-4"
+        mostrar={['lista', 'pausada', 'no_habilitada', 'sin_sesion']}
+        accion={(situacion) => situacion === 'sin_sesion' && (
+          <>
+            <Link to={rutaIngreso('/app')} className={clasesBoton({ variant: 'blue', size: 'sm' })}>
+              <LogIn size={16} aria-hidden="true" /> Ingresar
+            </Link>
+            <Link to={`${rutaIngreso('/app')}&modo=registro`} className={clasesBoton({ variant: 'secondary', size: 'sm' })}>
+              <UserPlus size={16} aria-hidden="true" /> Crear cuenta
+            </Link>
+          </>
+        )}
       />
-    </div>
+
+      <AccesosRapidos className="mt-5" />
+
+      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0 space-y-8">
+          {session && <ProximaReserva />}
+          <PartidosAbiertos />
+        </div>
+        <aside aria-label="Ranking y clubes" className="space-y-6">
+          <RankingTop />
+          <SumaTuClub />
+        </aside>
+      </div>
+    </AppShell>
   );
 }

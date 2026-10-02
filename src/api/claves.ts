@@ -1,0 +1,37 @@
+/** Claves de caché: invalidar por prefijo refresca todo lo relacionado. */
+export const claves = {
+  estadoOperacion: ['estado-operacion'] as const,
+  perfil: (usuarioId: string | undefined) => ['perfil', usuarioId] as const,
+  catalogo: ['catalogo'] as const,
+  club: (slug: string) => ['catalogo', 'club', slug] as const,
+  disponibilidad: ['disponibilidad'] as const,
+  disponibilidadDe: (filtro: { clubId?: number; canchaId?: number; desde: string; hasta: string }) =>
+    ['disponibilidad', filtro] as const,
+  partidos: ['partidos'] as const,
+  explorarPartidos: (filtros: object) => ['partidos', 'explorar', filtros] as const,
+  partido: (id: number, token?: string | null) => ['partidos', 'detalle', id, token ?? null] as const,
+  misPartidos: ['partidos', 'mios'] as const,
+  mensajes: (partidoId: number) => ['partidos', 'mensajes', partidoId] as const,
+  misReservas: (historial: boolean) => ['reservas', 'mias', historial] as const,
+  reservas: ['reservas'] as const,
+  notificaciones: ['notificaciones'] as const,
+  logros: ['logros'] as const,
+  ranking: ['ranking'] as const,
+  gestion: (clubId: number) => ['gestion', clubId] as const,
+  panel: (clubId: number) => ['gestion', clubId, 'panel'] as const,
+  agenda: (clubId: number, desde: string, hasta: string, canceladas: boolean) =>
+    ['gestion', clubId, 'agenda', desde, hasta, canceladas] as const,
+  pendientes: (clubId: number) => ['gestion', clubId, 'pendientes'] as const,
+  pagosInformados: (clubId: number) => ['gestion', clubId, 'pagos-informados'] as const,
+  clientes: (clubId: number, busqueda: string, archivados: boolean) =>
+    ['gestion', clubId, 'clientes', busqueda, archivados] as const,
+  cliente: (clienteId: number) => ['gestion', 'cliente', clienteId] as const,
+  series: (clubId: number, finalizadas: boolean) => ['gestion', clubId, 'series', finalizadas] as const,
+  caja: (clubId: number, desde: string, hasta: string) => ['gestion', clubId, 'caja', desde, hasta] as const,
+  deudas: (clubId: number) => ['gestion', clubId, 'deudas'] as const,
+  reporte: (clubId: number, desde: string, hasta: string) => ['gestion', clubId, 'reporte', desde, hasta] as const,
+  equipo: (clubId: number) => ['gestion', clubId, 'equipo'] as const,
+  auditoriaClub: (clubId: number) => ['gestion', clubId, 'auditoria'] as const,
+  admin: ['admin'] as const,
+  invitacionClub: (token: string) => ['invitacion-club', token] as const,
+};

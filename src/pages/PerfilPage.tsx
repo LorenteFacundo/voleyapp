@@ -1,114 +1,131 @@
-import { User, ArrowLeft, LogOut, Award } from 'lucide-react';
-import { BadgesGrid } from '@/components/features/BadgesGrid';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
-import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
-import { BottomNav } from '@/components/layout/BottomNav';
-import { AuthForm } from '@/components/features/AuthForm';
+import { KeyRound, LogOut, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
+import type { Perfil } from '@/api/tipos';
+import { ApiError } from '@/api/cliente';
+import { useAuth } from '@/contexts/auth';
+import { AppShell, PageTitle } from '@/components/layout/AppShell';
+import { Button, Spinner } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { Cargando, ErrorCarga } from '@/components/ui/Estados';
+import { FormularioNuevaClave } from '@/features/auth/FormularioNuevaClave';
+import { InvitacionIngreso } from '@/features/jugador/InvitacionIngreso';
+import { Seccion } from '@/features/jugador/Seccion';
+import { AccesosPerfil } from '@/features/jugador/perfil/AccesosPerfil';
+import { FormularioPerfil } from '@/features/jugador/perfil/FormularioPerfil';
+import { ListaLogros } from '@/features/jugador/perfil/ListaLogros';
+import { ModalCambiarClave } from '@/features/jugador/perfil/ModalCambiarClave';
+import { ResumenPerfil } from '@/features/jugador/perfil/ResumenPerfil';
 
-export function PerfilPage() {
+function ElegirNuevaClave() {
+  const { terminarRecuperacion } = useAuth();
+  return (
+    <div className="mx-auto max-w-md">
+      <PageTitle
+        titulo="Elegí una nueva contraseña"
+        descripcion="Entraste con el enlace para recuperar tu cuenta. Elegí la contraseña que vas a usar de ahora en más."
+      />
+      <Card padding="lg">
+        <FormularioNuevaClave
+          acciones={<Button variant="ghost" onClick={terminarRecuperacion}>Ahora no</Button>}
+        />
+      </Card>
+    </div>
+  );
+}
+
+function VistaPerfil({ perfil }: { perfil: Perfil }) {
+  const { esStaff, esAdmin, signOut } = useAuth();
   const navigate = useNavigate();
-  const { session, perfil, signOut } = useAuth();
+  const [cambiandoClave, setCambiandoClave] = useState(false);
+  const [saliendo, setSaliendo] = useState(false);
 
-  if (!session) {
-    return (
-      <div className="app-shell pb-20 md:pb-0">
-        <header className="sticky top-0 z-30 border-b border-vb-gray/10 bg-white/80 backdrop-blur-md">
-          <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
-              <ArrowLeft size={18} />
-            </Button>
-            <h1 className="text-lg font-bold text-vb-blue">Perfil</h1>
-          </div>
-        </header>
-
-        <main className="mx-auto max-w-sm px-4 py-6">
-          <Card padding="lg">
-            <div className="flex flex-col items-center gap-4 mb-4 text-center">
-              <div className="grid h-16 w-16 place-items-center rounded-full bg-vb-orange-light text-vb-orange">
-                <User size={32} />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-vb-blue">Bienvenido</h2>
-                <p className="text-sm text-vb-gray/65">
-                  Iniciá sesión o creá una cuenta para continuar.
-                </p>
-              </div>
-            </div>
-            <AuthForm onMessage={(msg) => toast(msg)} />
-          </Card>
-        </main>
-
-        <BottomNav />
-      </div>
-    );
+  async function cerrarSesion() {
+    setSaliendo(true);
+    try {
+      await signOut();
+      toast.success('Cerraste sesión. ¡Nos vemos en la cancha!');
+      navigate('/app', { replace: true });
+    } catch {
+      toast.error('No pudimos cerrar la sesión. Intentá de nuevo.');
+      setSaliendo(false);
+    }
   }
 
   return (
-    <div className="app-shell pb-20 md:pb-0">
-      <header className="sticky top-0 z-30 border-b border-vb-gray/10 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
-            <ArrowLeft size={18} />
-          </Button>
-          <h1 className="text-lg font-bold text-vb-blue">Perfil</h1>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-md px-4 py-6">
+    <div className="mx-auto max-w-3xl">
+      <PageTitle titulo="Tu perfil" descripcion="Tus datos, tus logros y los accesos de tu cuenta." />
+      <div className="space-y-5">
+        <ResumenPerfil perfil={perfil} />
+        <AccesosPerfil esStaff={esStaff} esAdmin={esAdmin} />
         <Card padding="lg">
-          <div className="flex flex-col items-center gap-4 text-center">
-            <div className="grid h-20 w-20 place-items-center rounded-full bg-vb-orange text-white text-3xl font-black">
-              {(perfil?.nombre_completo ?? session.user.email ?? 'U')[0].toUpperCase()}
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-vb-blue">
-                {perfil?.nombre_completo ?? 'Usuario'}
-              </h2>
-              <p className="text-sm text-vb-gray/65">{session.user.email}</p>
-            </div>
-
-            <div className="grid w-full grid-cols-3 gap-3 text-center">
-              <div className="rounded-xl bg-vb-light p-3">
-                <p className="text-2xl font-bold text-vb-orange">{perfil?.nivel_voley ?? '-'}</p>
-                <p className="text-xs text-vb-gray/60">Nivel</p>
-              </div>
-              <div className="rounded-xl bg-vb-light p-3">
-                <p className="text-2xl font-bold text-vb-blue capitalize">{perfil?.rol ?? 'jugador'}</p>
-                <p className="text-xs text-vb-gray/60">Rol</p>
-              </div>
-              <div className="rounded-xl bg-vb-light p-3">
-                <p className="text-2xl font-bold text-vb-green">{perfil?.partidos_jugados ?? 0}</p>
-                <p className="text-xs text-vb-gray/60">Jugados</p>
-              </div>
-            </div>
-
-            {/* Puntos de actividad */}
-            <div className="w-full rounded-xl bg-vb-light p-4 text-center">
-              <p className="text-3xl font-black text-vb-orange">{perfil?.puntos_total ?? 0}</p>
-              <p className="text-xs text-vb-gray/60">Puntos de actividad</p>
-            </div>
-
-            {/* Badges */}
-            <div className="w-full">
-              <h3 className="mb-3 flex items-center gap-2 font-bold text-vb-blue">
-                <Award size={18} />
-                Mis badges
-              </h3>
-              <BadgesGrid usuarioId={session.user.id} />
-            </div>
-
-            <Button variant="danger" fullWidth onClick={signOut}>
-              <LogOut size={17} />
-              Cerrar sesión
-            </Button>
-          </div>
+          <Seccion titulo="Tus datos" descripcion="Así te ven en los partidos y los clubes donde reservás.">
+            <FormularioPerfil key={perfil.id} perfil={perfil} />
+          </Seccion>
         </Card>
-      </main>
-
-      <BottomNav />
+        <Card padding="lg">
+          <Seccion titulo="Logros">
+            <ListaLogros />
+          </Seccion>
+        </Card>
+        <Card padding="lg">
+          <Seccion titulo="Cuenta">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button variant="secondary" onClick={() => setCambiandoClave(true)}>
+                <KeyRound size={17} aria-hidden="true" /> Cambiar contraseña
+              </Button>
+              <button
+                type="button"
+                onClick={cerrarSesion}
+                disabled={saliendo}
+                aria-busy={saliendo || undefined}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vb-orange-ink focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {saliendo ? <Spinner /> : <LogOut size={17} aria-hidden="true" />}
+                {saliendo ? 'Cerrando sesión…' : 'Cerrar sesión'}
+              </button>
+            </div>
+          </Seccion>
+        </Card>
+      </div>
+      <ModalCambiarClave abierto={cambiandoClave} onCerrar={() => setCambiandoClave(false)} />
     </div>
   );
+}
+
+export function PerfilPage() {
+  const { session, perfil, loading, recuperandoClave, refreshPerfil } = useAuth();
+
+  // Quien llega con el enlace de recuperación primero elige la contraseña.
+  if (session && recuperandoClave) return <AppShell><ElegirNuevaClave /></AppShell>;
+  if (loading) return <AppShell><Cargando texto="Cargando tu perfil…" className="min-h-[40dvh]" /></AppShell>;
+
+  if (!session) {
+    return (
+      <AppShell>
+        <PageTitle titulo="Tu perfil" />
+        <InvitacionIngreso
+          titulo="Ingresá para ver tu perfil"
+          descripcion="Con tu cuenta seguís tus reservas y partidos, sumás puntos y desbloqueás logros."
+          siguiente="/perfil"
+          icono={<UserRound size={28} />}
+        />
+      </AppShell>
+    );
+  }
+
+  if (!perfil) {
+    return (
+      <AppShell>
+        <PageTitle titulo="Tu perfil" />
+        <ErrorCarga
+          error={new ApiError('No pudimos cargar tu perfil. Revisá tu conexión e intentá de nuevo.')}
+          onRetry={() => void refreshPerfil()}
+        />
+      </AppShell>
+    );
+  }
+
+  return <AppShell><VistaPerfil perfil={perfil} /></AppShell>;
 }

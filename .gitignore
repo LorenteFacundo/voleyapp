@@ -5,5 +5,14 @@ dist
 .agents
 .superpowers/
 *.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+.env.local
+.env
+.env.*
+!.env.example
 skills-lock.json
 opencode.json
+
+# Configuración local del preview de Claude
+.claude/launch.json

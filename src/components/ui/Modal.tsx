@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import clsx from 'clsx';
@@ -6,55 +6,123 @@ import clsx from 'clsx';
 type ModalProps = {
   open: boolean;
   onClose: () => void;
-  title?: string;
+  title: React.ReactNode;
+  descripcion?: React.ReactNode;
   children: React.ReactNode;
+  /** Botones al pie, siempre visibles. */
+  footer?: React.ReactNode;
+  size?: 'sm' | 'md' | 'lg' | 'xl';
+  /** Evita cerrar al tocar fuera (por ejemplo, mientras se guarda). */
+  bloqueado?: boolean;
 };
 
-export const Modal: React.FC<ModalProps> = ({ open, onClose, title, children }) => {
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    },
-    [onClose]
-  );
+const anchos = { sm: 'sm:max-w-md', md: 'sm:max-w-lg', lg: 'sm:max-w-2xl', xl: 'sm:max-w-4xl' };
+
+const ENFOCABLES = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
+// Diálogos abiertos, del más viejo al más nuevo (por ejemplo, una confirmación
+// sobre una ficha): Escape y el ciclo de Tab solo afectan al de arriba, y el
+// scroll de la página se libera cuando se cierra el último.
+const pila: symbol[] = [];
+let overflowOriginal = '';
+
+/**
+ * Diálogo accesible: en celulares se abre como hoja desde abajo. Atrapa el
+ * foco, cierra con Escape y devuelve el foco al elemento que lo abrió.
+ */
+export function Modal({ open, onClose, title, descripcion, children, footer, size = 'md', bloqueado = false }: ModalProps) {
+  const titleId = useId();
+  const descId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  const bloqueadoRef = useRef(bloqueado);
 
   useEffect(() => {
-    if (open) {
-      document.addEventListener('keydown', handleKeyDown);
+    onCloseRef.current = onClose;
+    bloqueadoRef.current = bloqueado;
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    const propio = Symbol('modal');
+    if (pila.length === 0) {
+      overflowOriginal = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
     }
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = '';
+    pila.push(propio);
+    const previo = document.activeElement as HTMLElement | null;
+    const panel = panelRef.current;
+    const primero = panel?.querySelector<HTMLElement>('[data-autofocus]') ?? panel?.querySelector<HTMLElement>(ENFOCABLES);
+    (primero ?? panel)?.focus();
+
+    const alTeclear = (evento: KeyboardEvent) => {
+      if (pila[pila.length - 1] !== propio) return;
+      if (evento.key === 'Escape') {
+        if (!bloqueadoRef.current) onCloseRef.current();
+        return;
+      }
+      if (evento.key !== 'Tab' || !panel) return;
+      const elementos = Array.from(panel.querySelectorAll<HTMLElement>(ENFOCABLES)).filter((el) => el.offsetParent !== null);
+      if (!elementos.length) return;
+      const [inicio, fin] = [elementos[0], elementos[elementos.length - 1]];
+      if (evento.shiftKey && document.activeElement === inicio) { evento.preventDefault(); fin.focus(); }
+      else if (!evento.shiftKey && document.activeElement === fin) { evento.preventDefault(); inicio.focus(); }
     };
-  }, [open, handleKeyDown]);
+    document.addEventListener('keydown', alTeclear);
+    return () => {
+      document.removeEventListener('keydown', alTeclear);
+      pila.splice(pila.indexOf(propio), 1);
+      if (pila.length === 0) document.body.style.overflow = overflowOriginal;
+      previo?.focus?.();
+    };
+  }, [open]);
 
   if (!open) return null;
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-ink/40 p-0 sm:p-4"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+      role="presentation"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/50 sm:items-center sm:p-4"
+      onMouseDown={(evento) => {
+        if (evento.target === evento.currentTarget && !bloqueado) onClose();
       }}
     >
-      <div className="flex max-h-[92vh] sm:max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-lg sm:rounded-lg bg-white shadow-soft">
-        {title && (
-          <div className="flex items-center justify-between border-b border-ink/10 px-4 py-3">
-            <h2 className="text-base font-semibold text-ink">{title}</h2>
-            <button
-              onClick={onClose}
-              className="rounded-md p-1 text-ink/50 transition hover:bg-ink/5 hover:text-ink"
-            >
-              <X size={20} />
-            </button>
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descripcion ? descId : undefined}
+        tabIndex={-1}
+        className={clsx(
+          'flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-soft outline-none',
+          'animate-slide-up sm:rounded-2xl',
+          anchos[size],
+        )}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-ink/10 px-5 py-4">
+          <div className="min-w-0">
+            <h2 id={titleId} className="text-lg font-bold text-ink">{title}</h2>
+            {descripcion && <p id={descId} className="mt-0.5 text-sm text-ink/65">{descripcion}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={bloqueado}
+            aria-label="Cerrar"
+            className="-mr-2 grid h-10 w-10 shrink-0 place-items-center rounded-full text-ink/65 transition hover:bg-ink/5 hover:text-ink disabled:opacity-40"
+          >
+            <X size={20} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        {footer && (
+          <div className="flex flex-col-reverse gap-2 border-t border-ink/10 px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end">
+            {footer}
           </div>
         )}
-        <div className="flex-1 overflow-y-auto p-4">
-          {children}
-        </div>
       </div>
     </div>,
-    document.body
+    document.body,
   );
-};
+}
